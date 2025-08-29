@@ -27,6 +27,40 @@ const parseJsonFromText = (text: string) => {
   // Remove trailing commas from objects and arrays
   jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
 
+  // Sanitize newlines and other control characters inside strings.
+  // This is a fallback for cases where the LLM produces invalid JSON strings.
+  let sanitizedJsonStr = '';
+  let inString = false;
+  let isEscaped = false;
+  for (const char of jsonStr) {
+      if (inString) {
+          if (isEscaped) {
+              sanitizedJsonStr += char;
+              isEscaped = false;
+          } else if (char === '\\') {
+              sanitizedJsonStr += char;
+              isEscaped = true;
+          } else if (char === '"') {
+              sanitizedJsonStr += char;
+              inString = false;
+          } else if (char === '\n') {
+              sanitizedJsonStr += '\\n';
+          } else if (char === '\r') {
+              sanitizedJsonStr += '\\r';
+          } else if (char === '\t') {
+              sanitizedJsonStr += '\\t';
+          } else {
+              sanitizedJsonStr += char;
+          }
+      } else { // Not in a string
+          if (char === '"') {
+              inString = true;
+          }
+          sanitizedJsonStr += char;
+      }
+  }
+  jsonStr = sanitizedJsonStr;
+
   try {
     const data = JSON.parse(jsonStr);
     // If sourceDocument became null, remove it so it becomes undefined in JS.
@@ -199,6 +233,7 @@ export const generateWorkflowFromGoal = async (goal: string): Promise<Workflow> 
     const systemInstruction = `You are an expert AI workflow orchestrator. Your task is to analyze a user's goal and generate a complete, multi-task workflow as a valid JSON object.
     
 The user goal will be provided. Based on this, create a workflow with a series of tasks. The output MUST be a single, valid JSON object representing the workflow. Do not include any text or explanations outside the JSON.
+All string values in the JSON, especially for multi-line fields like "promptTemplate", must be properly formatted with escaped newlines (e.g., using \\n).
 
 The root JSON object must have 'name', 'description', and 'tasks' fields. Each task in the 'tasks' array must have the following fields:
 - id: A unique string identifier for the task (e.g., "task-1").
