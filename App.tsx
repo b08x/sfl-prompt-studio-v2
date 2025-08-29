@@ -169,15 +169,30 @@ const promptToMarkdown = (prompt: PromptSFL): string => {
 type Page = 'dashboard' | 'lab' | 'documentation' | 'settings';
 
 const App: React.FC = () => {
+  // --- Client-Side Persistence for Prompts ---
+  // This state hook manages the entire list of SFL prompts.
+  // It uses an initializer function to perform the initial load from localStorage.
   const [prompts, setPrompts] = useState<PromptSFL[]>(() => {
+    // 1. LOAD: On application startup, we attempt to load saved prompts from the browser's localStorage.
+    // This provides persistence across browser sessions on the same device.
     const savedPrompts = localStorage.getItem('sflPrompts');
     try {
         const parsed = savedPrompts ? JSON.parse(savedPrompts) : samplePrompts;
         return Array.isArray(parsed) ? parsed : samplePrompts;
     } catch (error) {
         console.error("Failed to parse prompts from localStorage", error);
-        return samplePrompts;
+        return samplePrompts; // Fallback to sample data on error
     }
+    // --- FUTURE ENHANCEMENT: Backend API Call ---
+    // To sync across devices, this localStorage logic would be replaced.
+    // Instead of `localStorage.getItem`, you would make an async API call here, likely in a `useEffect` hook.
+    // Example:
+    // useEffect(() => {
+    //   fetch('/api/prompts')
+    //     .then(res => res.json())
+    //     .then(data => setPrompts(data))
+    //     .catch(err => console.error("Failed to fetch prompts", err));
+    // }, []);
   });
   const [activeModal, setActiveModal] = useState<ModalType>(ModalType.NONE);
   const [selectedPrompt, setSelectedPrompt] = useState<PromptSFL | null>(null);
@@ -221,8 +236,15 @@ const App: React.FC = () => {
   }, []);
 
 
+  // 2. SAVE: This effect hook listens for any changes to the `prompts` state array.
+  // Whenever a prompt is added, edited, or deleted, this hook triggers and saves
+  // the entire updated array back into localStorage.
   useEffect(() => {
+    // This is a simple but effective client-side persistence strategy.
     localStorage.setItem('sflPrompts', JSON.stringify(prompts));
+    // --- FUTURE ENHANCEMENT: Backend API Call ---
+    // This approach of saving the entire list on every change is not ideal for a backend.
+    // Instead, individual API calls would be made in the handler functions (`handleSavePrompt`, `handleDeletePrompt`).
   }, [prompts]);
 
   const handleOpenCreateModal = () => {
@@ -253,20 +275,33 @@ const App: React.FC = () => {
   };
 
   const handleSavePrompt = (prompt: PromptSFL) => {
+    // --- FUTURE ENHANCEMENT: Backend API Call ---
+    // This is the ideal place to save a single prompt to the backend.
     setPrompts(prevPrompts => {
       const existingIndex = prevPrompts.findIndex(p => p.id === prompt.id);
       if (existingIndex > -1) {
+        // UPDATE (PUT/PATCH): The prompt already exists, so we would send an update request.
+        // fetch(`/api/prompts/${prompt.id}`, { method: 'PUT', body: JSON.stringify(prompt), ... });
         const updatedPrompts = [...prevPrompts];
         updatedPrompts[existingIndex] = prompt;
         return updatedPrompts;
       }
+      // CREATE (POST): The prompt is new, so we would send a create request.
+      // fetch('/api/prompts', { method: 'POST', body: JSON.stringify(prompt), ... });
       return [prompt, ...prevPrompts].sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     });
+    // In a real backend scenario, you might wait for the API response before closing the modal
+    // and show a loading indicator.
     handleCloseModal();
   };
 
   const handleDeletePrompt = (promptId: string) => {
     if(window.confirm('Are you sure you want to delete this prompt?')){
+      // --- FUTURE ENHANCEMENT: Backend API Call ---
+      // This is where you would make a DELETE request to the backend.
+      // fetch(`/api/prompts/${promptId}`, { method: 'DELETE', ... });
+      
+      // The state update would ideally happen *after* the API call succeeds (optimistic UI updates are also possible).
       setPrompts(prevPrompts => prevPrompts.filter(p => p.id !== promptId));
       if (selectedPrompt && selectedPrompt.id === promptId) {
           setSelectedPrompt(null);
