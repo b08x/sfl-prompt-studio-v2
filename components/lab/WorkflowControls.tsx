@@ -66,7 +66,7 @@ const WorkflowControls: React.FC<WorkflowControlsProps> = ({
 
     return (
         <div className="p-4 bg-gray-900 rounded-lg border border-gray-700 space-y-4">
-            <h2 className="text-lg font-bold text-gray-50">Workflow Controls</h2>
+            <h2 className="text-lg font-bold text-gray-50">Workflow Selection</h2>
             
             <input type="file" ref={importFileRef} onChange={handleFileImport} className="hidden" accept=".json" />
 

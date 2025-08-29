@@ -1,8 +1,8 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Workflow, TaskStatus, PromptSFL, DataStore, TaskStateMap } from '../../types';
 import TaskNode from './TaskNode';
-import DataStoreViewer from './DataStoreViewer';
 import PlayIcon from '../icons/PlayIcon';
 import ArrowPathIcon from '../icons/ArrowPathIcon';
 import TaskDetailModal from './modals/TaskDetailModal';
@@ -61,31 +61,25 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflow, prompts, data
                 </div>
             </header>
 
-            <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 overflow-y-auto p-6">
-                     {runFeedback.length > 0 && (
-                        <div className="mb-4 p-3 bg-amber-900/50 border-l-4 border-amber-500 text-amber-300 text-xs rounded-r-lg">
-                            <p className="font-bold">Execution Notes:</p>
-                            <ul className="list-disc list-inside">
-                                {runFeedback.map((fb, i) => <li key={i}>{fb}</li>)}
-                            </ul>
-                        </div>
-                    )}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {workflow.tasks.map(task => (
-                            <TaskNode
-                                key={task.id}
-                                task={task}
-                                state={taskStates[task.id] || { status: TaskStatus.PENDING }}
-                                onClick={() => handleTaskClick(task.id)}
-                            />
-                        ))}
+            <div className="flex-1 overflow-y-auto p-6">
+                 {runFeedback.length > 0 && (
+                    <div className="mb-4 p-3 bg-amber-900/50 border-l-4 border-amber-500 text-amber-300 text-xs rounded-r-lg">
+                        <p className="font-bold">Execution Notes:</p>
+                        <ul className="list-disc list-inside">
+                            {runFeedback.map((fb, i) => <li key={i}>{fb}</li>)}
+                        </ul>
                     </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {workflow.tasks.map(task => (
+                        <TaskNode
+                            key={task.id}
+                            task={task}
+                            state={taskStates[task.id] || { status: TaskStatus.PENDING }}
+                            onClick={() => handleTaskClick(task.id)}
+                        />
+                    ))}
                 </div>
-                
-                <aside className="w-[400px] bg-gray-800 border-l border-gray-700 overflow-y-auto">
-                    <DataStoreViewer dataStore={dataStore} />
-                </aside>
             </div>
             
             {selectedTaskForDetail && taskForModal && (

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PromptSFL, Filters, ModalType } from './types';
 import Sidebar from './components/Sidebar';
@@ -182,6 +183,7 @@ const App: React.FC = () => {
   const [selectedPrompt, setSelectedPrompt] = useState<PromptSFL | null>(null);
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [activePage, setActivePage] = useState<Page>('dashboard');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const [appConstants, setAppConstants] = useState({
@@ -539,6 +541,8 @@ const App: React.FC = () => {
         popularTags={appConstants.popularTags}
         activePage={activePage}
         onNavigate={handleNavigate}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
       />
        <input
             type="file"
