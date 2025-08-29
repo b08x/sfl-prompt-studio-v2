@@ -1,7 +1,6 @@
 
-import React, { useState } from 'react';
-import { Workflow, StagedUserInput, TaskStatus, PromptSFL } from '../../types';
-import { useWorkflowRunner } from '../../hooks/useWorkflowRunner';
+import React, { useState, useEffect } from 'react';
+import { Workflow, TaskStatus, PromptSFL, DataStore, TaskStateMap } from '../../types';
 import TaskNode from './TaskNode';
 import DataStoreViewer from './DataStoreViewer';
 import PlayIcon from '../icons/PlayIcon';
@@ -10,13 +9,23 @@ import TaskDetailModal from './modals/TaskDetailModal';
 
 interface WorkflowCanvasProps {
     workflow: Workflow;
-    stagedInput: StagedUserInput;
     prompts: PromptSFL[];
+    dataStore: DataStore;
+    taskStates: TaskStateMap;
+    isRunning: boolean;
+    run: () => void;
+    reset: () => void;
+    runFeedback: string[];
 }
 
-const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflow, stagedInput, prompts }) => {
-    const { dataStore, taskStates, isRunning, run, reset, runFeedback } = useWorkflowRunner(workflow, prompts);
+const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflow, prompts, dataStore, taskStates, isRunning, run, reset, runFeedback }) => {
     const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<string | null>(null);
+
+    // Reset the runner state when the workflow itself changes.
+    useEffect(() => {
+        reset();
+    }, [workflow, reset]);
+
 
     const handleTaskClick = (taskId: string) => {
         setSelectedTaskForDetail(taskId);
@@ -42,7 +51,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflow, stagedInput, 
                         <span>Reset</span>
                     </button>
                     <button
-                        onClick={() => run(stagedInput)}
+                        onClick={() => run()}
                         disabled={isRunning}
                         className="flex items-center space-x-2 bg-teal-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm disabled:opacity-50"
                     >

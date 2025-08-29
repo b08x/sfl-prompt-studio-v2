@@ -1,7 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { StagedUserInput } from '../../types';
 import PaperClipIcon from '../icons/PaperClipIcon';
 import DocumentTextIcon from '../icons/DocumentTextIcon';
+import CheckIcon from '../icons/CheckIcon';
 
 type Tab = 'text' | 'image' | 'file';
 
@@ -10,6 +11,7 @@ const UserInputArea: React.FC<{ onStageInput: (input: StagedUserInput) => void }
     const [text, setText] = useState('');
     const [image, setImage] = useState<{ name: string; type: string; base64: string, preview: string } | null>(null);
     const [file, setFile] = useState<{ name: string; content: string } | null>(null);
+    const [isStaged, setIsStaged] = useState(false);
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const uploadedFile = e.target.files?.[0];
@@ -36,8 +38,19 @@ const UserInputArea: React.FC<{ onStageInput: (input: StagedUserInput) => void }
     }
 
     const handleStage = () => {
+        if (isStaged) return; // Prevent multiple clicks
+
         onStageInput({ text, image, file });
-        alert('Input has been staged for the workflow.');
+        setIsStaged(true);
+
+        // Clear inputs
+        setText('');
+        setImage(null);
+        setFile(null);
+        
+        setTimeout(() => {
+            setIsStaged(false);
+        }, 2000);
     };
 
     const TabButton: React.FC<{ tabId: Tab, children: React.ReactNode }> = ({ tabId, children }) => (
@@ -109,9 +122,21 @@ const UserInputArea: React.FC<{ onStageInput: (input: StagedUserInput) => void }
             </div>
             <button
                 onClick={handleStage}
-                className="w-full mt-4 bg-blue-500 text-white py-2 rounded-md font-semibold hover:bg-blue-600 transition-colors"
+                disabled={isStaged}
+                className={`w-full mt-4 py-2 rounded-md font-semibold transition-all duration-300 flex items-center justify-center space-x-2 ${
+                    isStaged
+                        ? 'bg-teal-500 text-white cursor-default'
+                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                }`}
             >
-                Stage Input for Workflow
+                {isStaged ? (
+                    <>
+                        <CheckIcon className="w-5 h-5" />
+                        <span>Input Staged</span>
+                    </>
+                ) : (
+                    <span>Stage Input for Workflow</span>
+                )}
             </button>
         </div>
     );

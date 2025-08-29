@@ -1,11 +1,12 @@
 
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Workflow, ModalType, StagedUserInput, PromptSFL } from '../../types';
 import { useWorkflowManager } from '../../hooks/useWorkflowManager';
+import { useWorkflowRunner } from '../../hooks/useWorkflowRunner';
 import WorkflowControls from './WorkflowControls';
 import UserInputArea from './UserInputArea';
-import DataStoreViewer from './DataStoreViewer';
 import WorkflowCanvas from './WorkflowCanvas';
 import WorkflowEditorModal from './modals/WorkflowEditorModal';
 import WorkflowWizardModal from './modals/WorkflowWizardModal';
@@ -15,12 +16,12 @@ interface PromptLabPageProps {
 }
 
 const PromptLabPage: React.FC<PromptLabPageProps> = ({ prompts }) => {
-    const { workflows, saveWorkflow, deleteWorkflow, isLoading, setWorkflows, saveCustomWorkflows } = useWorkflowManager();
+    const { workflows, saveWorkflow, deleteWorkflow, isLoading, saveCustomWorkflows } = useWorkflowManager();
     const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
     const [activeModal, setActiveModal] = useState<ModalType>(ModalType.NONE);
-    const [stagedInput, setStagedInput] = useState<StagedUserInput>({});
-
+    
     const activeWorkflow = workflows.find(wf => wf.id === activeWorkflowId) || null;
+    const { dataStore, taskStates, isRunning, run, reset, runFeedback, stageInput } = useWorkflowRunner(activeWorkflow, prompts);
 
     useEffect(() => {
         if (!isLoading && workflows.length > 0 && !activeWorkflowId) {
@@ -71,16 +72,21 @@ const PromptLabPage: React.FC<PromptLabPageProps> = ({ prompts }) => {
                     onDeleteWorkflow={deleteWorkflow}
                     onImportWorkflows={handleImportWorkflows}
                 />
-                <UserInputArea onStageInput={setStagedInput} />
+                <UserInputArea onStageInput={stageInput} />
             </aside>
             
             <main className="flex-1 flex flex-col overflow-hidden">
                  {activeWorkflow ? (
                     <WorkflowCanvas
-                        key={activeWorkflow.id} // Re-mounts the canvas when workflow changes, resetting state
+                        key={activeWorkflow.id} 
                         workflow={activeWorkflow}
-                        stagedInput={stagedInput}
                         prompts={prompts}
+                        dataStore={dataStore}
+                        taskStates={taskStates}
+                        isRunning={isRunning}
+                        run={run}
+                        reset={reset}
+                        runFeedback={runFeedback}
                     />
                 ) : (
                     <div className="flex items-center justify-center h-full text-center text-gray-400">
