@@ -1,7 +1,4 @@
 
-
-
-
 import React from 'react';
 import { Task, TaskState, TaskStatus, TaskType } from '../../types';
 import CodeBracketIcon from '../icons/CodeBracketIcon';
@@ -40,7 +37,7 @@ interface TaskNodeProps {
     hasInputData?: boolean;
 }
 
-const TaskNode: React.FC<TaskNodeProps> = ({ task, state, onClick, hasInputData }) => {
+const TaskNode = React.forwardRef<HTMLDivElement, TaskNodeProps>(({ task, state, onClick, hasInputData }, ref) => {
     const config = statusConfig[state.status];
 
     const getResultSummary = () => {
@@ -54,8 +51,9 @@ const TaskNode: React.FC<TaskNodeProps> = ({ task, state, onClick, hasInputData 
 
     return (
         <div 
+            ref={ref}
             onClick={onClick}
-            className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md hover:border-gray-600 ${config.bg} ${config.border}`}
+            className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md hover:border-gray-600 ${config.bg} ${config.border} relative z-10`}
         >
             <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3">
@@ -64,7 +62,6 @@ const TaskNode: React.FC<TaskNodeProps> = ({ task, state, onClick, hasInputData 
                     </div>
                     <div className="flex items-center space-x-2">
                         <h3 className="font-semibold text-gray-50">{task.name}</h3>
-                        {/* FIX: The 'title' prop is not valid on the SVG component directly. It should be on a wrapping element like a span to provide a tooltip. */}
                         {hasInputData && <span title="Input has been staged for this task"><CheckIcon className="w-4 h-4 text-teal-400" /></span>}
                         {task.promptId && <span title="Linked to SFL Prompt Library"><LinkIcon className="w-4 h-4 text-gray-500" /></span>}
                     </div>
@@ -101,6 +98,6 @@ const TaskNode: React.FC<TaskNodeProps> = ({ task, state, onClick, hasInputData 
             )}
         </div>
     );
-};
+});
 
 export default TaskNode;
