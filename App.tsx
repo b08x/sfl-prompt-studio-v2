@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { PromptSFL, Filters, ModalType } from './types';
+import { PromptSFL, Filters, ModalType, Workflow, Task, DataStore, StagedUserInput } from './types';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import Stats from './components/Stats';
@@ -14,6 +14,10 @@ import Documentation from './components/Documentation';
 import PromptLabPage from './components/lab/PromptLabPage';
 import { testPromptWithGemini } from './services/geminiService';
 import { TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS, POPULAR_TAGS } from './constants';
+import { useWorkflowManager } from './hooks/useWorkflowManager';
+import { useWorkflowRunner } from './hooks/useWorkflowRunner';
+import WorkflowEditorModal from './components/lab/modals/WorkflowEditorModal';
+import WorkflowWizardModal from './components/lab/modals/WorkflowWizardModal';
 
 
 const initialFilters: Filters = {
@@ -170,36 +174,35 @@ type Page = 'dashboard' | 'lab' | 'documentation' | 'settings';
 
 const App: React.FC = () => {
   // --- Client-Side Persistence for Prompts ---
-  // This state hook manages the entire list of SFL prompts.
-  // It uses an initializer function to perform the initial load from localStorage.
   const [prompts, setPrompts] = useState<PromptSFL[]>(() => {
-    // 1. LOAD: On application startup, we attempt to load saved prompts from the browser's localStorage.
-    // This provides persistence across browser sessions on the same device.
     const savedPrompts = localStorage.getItem('sflPrompts');
     try {
         const parsed = savedPrompts ? JSON.parse(savedPrompts) : samplePrompts;
         return Array.isArray(parsed) ? parsed : samplePrompts;
     } catch (error) {
         console.error("Failed to parse prompts from localStorage", error);
-        return samplePrompts; // Fallback to sample data on error
+        return samplePrompts;
     }
-    // --- FUTURE ENHANCEMENT: Backend API Call ---
-    // To sync across devices, this localStorage logic would be replaced.
-    // Instead of `localStorage.getItem`, you would make an async API call here, likely in a `useEffect` hook.
-    // Example:
-    // useEffect(() => {
-    //   fetch('/api/prompts')
-    //     .then(res => res.json())
-    //     .then(data => setPrompts(data))
-    //     .catch(err => console.error("Failed to fetch prompts", err));
-    // }, []);
   });
+
   const [activeModal, setActiveModal] = useState<ModalType>(ModalType.NONE);
   const [selectedPrompt, setSelectedPrompt] = useState<PromptSFL | null>(null);
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
+
+  // --- Lifted State for Prompt Lab ---
+  const { workflows, saveWorkflow, deleteWorkflow, isLoading: workflowsLoading, saveCustomWorkflows } = useWorkflowManager();
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
+  const activeWorkflow = useMemo(() => workflows.find(wf => wf.id === activeWorkflowId) || null, [workflows, activeWorkflowId]);
+  const { dataStore, taskStates, isRunning, run, reset, runFeedback, stageInput } = useWorkflowRunner(activeWorkflow, prompts);
+
+  useEffect(() => {
+    if (!workflowsLoading && workflows.length > 0 && !activeWorkflowId) {
+        setActiveWorkflowId(workflows[0].id);
+    }
+  }, [workflowsLoading, workflows, activeWorkflowId]);
 
   const [appConstants, setAppConstants] = useState({
     taskTypes: TASK_TYPES,
@@ -235,16 +238,8 @@ const App: React.FC = () => {
     });
   }, []);
 
-
-  // 2. SAVE: This effect hook listens for any changes to the `prompts` state array.
-  // Whenever a prompt is added, edited, or deleted, this hook triggers and saves
-  // the entire updated array back into localStorage.
   useEffect(() => {
-    // This is a simple but effective client-side persistence strategy.
     localStorage.setItem('sflPrompts', JSON.stringify(prompts));
-    // --- FUTURE ENHANCEMENT: Backend API Call ---
-    // This approach of saving the entire list on every change is not ideal for a backend.
-    // Instead, individual API calls would be made in the handler functions (`handleSavePrompt`, `handleDeletePrompt`).
   }, [prompts]);
 
   const handleOpenCreateModal = () => {
@@ -275,33 +270,20 @@ const App: React.FC = () => {
   };
 
   const handleSavePrompt = (prompt: PromptSFL) => {
-    // --- FUTURE ENHANCEMENT: Backend API Call ---
-    // This is the ideal place to save a single prompt to the backend.
     setPrompts(prevPrompts => {
       const existingIndex = prevPrompts.findIndex(p => p.id === prompt.id);
       if (existingIndex > -1) {
-        // UPDATE (PUT/PATCH): The prompt already exists, so we would send an update request.
-        // fetch(`/api/prompts/${prompt.id}`, { method: 'PUT', body: JSON.stringify(prompt), ... });
         const updatedPrompts = [...prevPrompts];
         updatedPrompts[existingIndex] = prompt;
         return updatedPrompts;
       }
-      // CREATE (POST): The prompt is new, so we would send a create request.
-      // fetch('/api/prompts', { method: 'POST', body: JSON.stringify(prompt), ... });
       return [prompt, ...prevPrompts].sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     });
-    // In a real backend scenario, you might wait for the API response before closing the modal
-    // and show a loading indicator.
     handleCloseModal();
   };
 
   const handleDeletePrompt = (promptId: string) => {
     if(window.confirm('Are you sure you want to delete this prompt?')){
-      // --- FUTURE ENHANCEMENT: Backend API Call ---
-      // This is where you would make a DELETE request to the backend.
-      // fetch(`/api/prompts/${promptId}`, { method: 'DELETE', ... });
-      
-      // The state update would ideally happen *after* the API call succeeds (optimistic UI updates are also possible).
       setPrompts(prevPrompts => prevPrompts.filter(p => p.id !== promptId));
       if (selectedPrompt && selectedPrompt.id === promptId) {
           setSelectedPrompt(null);
@@ -534,6 +516,29 @@ const App: React.FC = () => {
       };
       reader.readAsText(file);
   };
+  
+  const handleImportWorkflows = (importedWorkflows: Workflow[]) => {
+      const customWorkflows = workflows.filter(wf => !wf.isDefault);
+      const merged = [...customWorkflows];
+      
+      importedWorkflows.forEach(iw => {
+          const index = merged.findIndex(cw => cw.id === iw.id);
+          if (index !== -1) {
+              merged[index] = iw; // Overwrite
+          } else {
+              merged.push(iw); // Add new
+          }
+      });
+      
+      saveCustomWorkflows(merged);
+      alert(`Import successful. ${importedWorkflows.length} workflows imported/updated.`);
+  };
+
+  const handleSaveWorkflow = (workflow: Workflow) => {
+    saveWorkflow(workflow);
+    setActiveWorkflowId(workflow.id); 
+    handleCloseModal();
+  };
 
 
   const renderMainContent = () => {
@@ -561,7 +566,24 @@ const App: React.FC = () => {
                 </>
             );
         case 'lab':
-            return <PromptLabPage prompts={prompts} />;
+            return <PromptLabPage
+              prompts={prompts}
+              activeWorkflow={activeWorkflow}
+              taskStates={taskStates}
+              isRunning={isRunning}
+              run={run}
+              reset={reset}
+              runFeedback={runFeedback}
+              isLoading={workflowsLoading}
+              workflows={workflows}
+              onSelectWorkflow={setActiveWorkflowId}
+              onOpenWorkflowEditor={() => setActiveModal(ModalType.WORKFLOW_EDITOR)}
+              onOpenWorkflowWizard={() => setActiveModal(ModalType.WORKFLOW_WIZARD)}
+              onDeleteWorkflow={deleteWorkflow}
+              onImportWorkflows={handleImportWorkflows}
+              onStageInput={stageInput}
+              dataStore={dataStore}
+            />;
         case 'documentation':
             return <div className="flex-1 overflow-y-auto p-6"><Documentation /></div>;
         case 'settings':
@@ -581,13 +603,19 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-gray-900 font-sans">
       <Sidebar 
+        // Dashboard
         filters={filters}
         onFilterChange={handleFilterChange}
         popularTags={appConstants.popularTags}
+        
+        // Navigation
         activePage={activePage}
         onNavigate={handleNavigate}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+
+        // Lab
+        dataStore={dataStore}
       />
        <input
             type="file"
@@ -641,6 +669,25 @@ const App: React.FC = () => {
         <HelpModal
           isOpen={true}
           onClose={handleCloseModal}
+        />
+      )}
+
+      {activeModal === ModalType.WORKFLOW_EDITOR && (
+        <WorkflowEditorModal
+            isOpen={true}
+            onClose={handleCloseModal}
+            onSave={handleSaveWorkflow}
+            workflowToEdit={activeWorkflow?.isDefault ? null : activeWorkflow}
+            prompts={prompts}
+        />
+      )}
+      
+      {activeModal === ModalType.WORKFLOW_WIZARD && (
+        <WorkflowWizardModal
+            isOpen={true}
+            onClose={handleCloseModal}
+            onSave={handleSaveWorkflow}
+            prompts={prompts}
         />
       )}
     </div>

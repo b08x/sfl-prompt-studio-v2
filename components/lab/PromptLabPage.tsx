@@ -1,66 +1,74 @@
 
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { Workflow, ModalType, StagedUserInput, PromptSFL } from '../../types';
-import { useWorkflowManager } from '../../hooks/useWorkflowManager';
-import { useWorkflowRunner } from '../../hooks/useWorkflowRunner';
-import WorkflowControls from './WorkflowControls';
-import UserInputArea from './UserInputArea';
+
+import React, { useState } from 'react';
+import { Workflow, TaskStateMap, PromptSFL, StagedUserInput, Task, TaskType, DataStore } from '../../types';
 import WorkflowCanvas from './WorkflowCanvas';
-import WorkflowEditorModal from './modals/WorkflowEditorModal';
-import WorkflowWizardModal from './modals/WorkflowWizardModal';
-import ChevronDoubleLeftIcon from '../icons/ChevronDoubleLeftIcon';
-import ChevronDoubleRightIcon from '../icons/ChevronDoubleRightIcon';
-import DataStoreViewer from './DataStoreViewer';
 import ArrowPathIcon from '../icons/ArrowPathIcon';
 import PlayIcon from '../icons/PlayIcon';
+import WorkflowControls from './WorkflowControls';
+import TaskDetailModal from './modals/TaskDetailModal';
+import UserInputModal from './modals/UserInputModal';
 
 interface PromptLabPageProps {
     prompts: PromptSFL[];
+    activeWorkflow: Workflow | null;
+    taskStates: TaskStateMap;
+    isRunning: boolean;
+    run: () => void;
+    reset: () => void;
+    runFeedback: string[];
+    isLoading: boolean;
+    workflows: Workflow[];
+    onSelectWorkflow: (id: string) => void;
+    onOpenWorkflowEditor: () => void;
+    onOpenWorkflowWizard: () => void;
+    onDeleteWorkflow: (id: string) => void;
+    onImportWorkflows: (workflows: Workflow[]) => void;
+    onStageInput: (input: StagedUserInput) => void;
+    dataStore: DataStore;
 }
 
-const PromptLabPage: React.FC<PromptLabPageProps> = ({ prompts }) => {
-    const { workflows, saveWorkflow, deleteWorkflow, isLoading, saveCustomWorkflows } = useWorkflowManager();
-    const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
-    const [activeModal, setActiveModal] = useState<ModalType>(ModalType.NONE);
-    const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
-    const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
-    
-    const activeWorkflow = workflows.find(wf => wf.id === activeWorkflowId) || null;
-    const { dataStore, taskStates, isRunning, run, reset, runFeedback, stageInput } = useWorkflowRunner(activeWorkflow, prompts);
+const PromptLabPage: React.FC<PromptLabPageProps> = ({
+    prompts,
+    activeWorkflow,
+    taskStates,
+    isRunning,
+    run,
+    reset,
+    runFeedback,
+    isLoading,
+    workflows,
+    onSelectWorkflow,
+    onOpenWorkflowEditor,
+    onOpenWorkflowWizard,
+    onDeleteWorkflow,
+    onImportWorkflows,
+    onStageInput,
+    dataStore,
+}) => {
+    const [modalState, setModalState] = useState<{type: 'detail' | 'input' | 'none', taskId: string | null}>({type: 'none', taskId: null});
 
-    useEffect(() => {
-        if (!isLoading && workflows.length > 0 && !activeWorkflowId) {
-            setActiveWorkflowId(workflows[0].id);
+    const handleTaskClick = (task: Task) => {
+        if (task.type === TaskType.DATA_INPUT) {
+            setModalState({type: 'input', taskId: task.id });
+        } else {
+            setModalState({type: 'detail', taskId: task.id });
         }
-    }, [isLoading, workflows, activeWorkflowId]);
+    };
+    
+    const handleCloseModal = () => {
+        setModalState({ type: 'none', taskId: null });
+    };
 
-    const handleOpenModal = (modalType: ModalType) => setActiveModal(modalType);
-    const handleCloseModal = () => setActiveModal(ModalType.NONE);
-
-    const handleSaveWorkflow = (workflow: Workflow) => {
-        saveWorkflow(workflow);
-        setActiveWorkflowId(workflow.id); // Switch to the newly saved/edited workflow
+    const handleStageInputAndClose = (input: StagedUserInput) => {
+        onStageInput(input);
         handleCloseModal();
     };
     
-    const handleImportWorkflows = (importedWorkflows: Workflow[]) => {
-        const customWorkflows = workflows.filter(wf => !wf.isDefault);
-        const merged = [...customWorkflows];
-        
-        importedWorkflows.forEach(iw => {
-            const index = merged.findIndex(cw => cw.id === iw.id);
-            if (index !== -1) {
-                merged[index] = iw; // Overwrite
-            } else {
-                merged.push(iw); // Add new
-            }
-        });
-        
-        saveCustomWorkflows(merged);
-        alert(`Import successful. ${importedWorkflows.length} workflows imported/updated.`);
-    };
-
+    const taskForDetailModal = activeWorkflow?.tasks.find(t => t.id === modalState.taskId);
+    const taskStateForDetailModal = modalState.taskId ? taskStates[modalState.taskId] : undefined;
+    const taskForInputModal = activeWorkflow?.tasks.find(t => t.id === modalState.taskId && t.type === TaskType.DATA_INPUT);
 
     if (isLoading) {
         return <div className="flex items-center justify-center h-full"><div className="spinner"></div></div>;
@@ -101,94 +109,54 @@ const PromptLabPage: React.FC<PromptLabPageProps> = ({ prompts }) => {
                     </div>
                 )}
             </header>
-            <div className="flex-1 flex overflow-hidden">
-                 <aside className={`
-                    ${isRunning ? 'w-0 p-0 opacity-0' : (isLeftSidebarCollapsed ? 'w-0 p-0 opacity-0' : 'w-[350px] p-4')}
-                    bg-gray-800 border-r border-gray-700 flex flex-col transition-all duration-300 ease-in-out
-                `}>
-                    <div className="w-[318px] flex-grow flex flex-col space-y-4 overflow-hidden">
-                        <WorkflowControls
-                            workflows={workflows}
-                            activeWorkflow={activeWorkflow}
-                            onSelectWorkflow={setActiveWorkflowId}
-                            onOpenEditor={() => handleOpenModal(ModalType.WORKFLOW_EDITOR)}
-                            onOpenWizard={() => handleOpenModal(ModalType.WORKFLOW_WIZARD)}
-                            onDeleteWorkflow={deleteWorkflow}
-                            onImportWorkflows={handleImportWorkflows}
-                        />
-                        <UserInputArea onStageInput={stageInput} />
-                    </div>
-                </aside>
-                
-                <main className="flex-1 flex flex-col overflow-hidden relative">
-                    {!isRunning && (
-                        <button
-                            onClick={() => setIsLeftSidebarCollapsed(!isLeftSidebarCollapsed)}
-                            className="absolute top-1/2 -translate-y-1/2 left-0 z-20 bg-gray-700 hover:bg-gray-600 text-gray-300 p-1 rounded-r-md transition-opacity"
-                            title={isLeftSidebarCollapsed ? 'Show Selection Panel' : 'Hide Selection Panel'}
-                        >
-                            {isLeftSidebarCollapsed ? <ChevronDoubleRightIcon className="w-5 h-5"/> : <ChevronDoubleLeftIcon className="w-5 h-5"/>}
-                        </button>
-                    )}
-                    
-                    <button
-                        onClick={() => setIsRightSidebarCollapsed(!isRightSidebarCollapsed)}
-                        className="absolute top-1/2 -translate-y-1/2 right-0 z-20 bg-gray-700 hover:bg-gray-600 text-gray-300 p-1 rounded-l-md"
-                        title={isRightSidebarCollapsed ? 'Show Data Store' : 'Hide Data Store'}
-                    >
-                        {isRightSidebarCollapsed ? <ChevronDoubleLeftIcon className="w-5 h-5"/> : <ChevronDoubleRightIcon className="w-5 h-5"/>}
-                    </button>
-
-
-                    {activeWorkflow ? (
-                        <WorkflowCanvas
-                            key={activeWorkflow.id} 
-                            workflow={activeWorkflow}
-                            prompts={prompts}
-                            dataStore={dataStore}
-                            taskStates={taskStates}
-                            isRunning={isRunning}
-                            run={run}
-                            reset={reset}
-                            runFeedback={runFeedback}
-                        />
-                    ) : (
-                        <div className="flex items-center justify-center h-full text-center text-gray-400">
-                            <div>
-                                <h2 className="text-xl font-semibold">No Workflow Selected</h2>
-                                <p>Please select a workflow from the sidebar, or create a new one.</p>
-                            </div>
+            <main className="flex-1 flex flex-col overflow-hidden relative">
+                {activeWorkflow ? (
+                    <WorkflowCanvas
+                        key={activeWorkflow.id} 
+                        workflow={activeWorkflow}
+                        prompts={prompts}
+                        taskStates={taskStates}
+                        runFeedback={runFeedback}
+                        onTaskClick={handleTaskClick}
+                        dataStore={dataStore}
+                    />
+                ) : (
+                    <div className="flex items-center justify-center h-full text-center text-gray-400">
+                        <div>
+                            <h2 className="text-xl font-semibold">No Workflow Selected</h2>
+                            <p>Please select a workflow from the control panel below, or create a new one.</p>
                         </div>
-                    )}
-                </main>
-                
-                <aside className={`
-                    ${isRightSidebarCollapsed ? 'w-0 opacity-0' : 'w-[400px]'}
-                    bg-gray-800 border-l border-gray-700 transition-all duration-300 ease-in-out
-                `}>
-                    <div className="w-[400px] h-full overflow-hidden">
-                        <DataStoreViewer dataStore={dataStore} />
                     </div>
-                </aside>
-            </div>
+                )}
+            </main>
+             <footer className="flex-shrink-0 bg-gray-800 border-t border-gray-700 p-4">
+                <WorkflowControls
+                    workflows={workflows}
+                    activeWorkflow={activeWorkflow}
+                    onSelectWorkflow={onSelectWorkflow}
+                    onOpenEditor={onOpenWorkflowEditor}
+                    onOpenWizard={onOpenWorkflowWizard}
+                    onDeleteWorkflow={onDeleteWorkflow}
+                    onImportWorkflows={onImportWorkflows}
+                />
+            </footer>
 
-
-            {activeModal === ModalType.WORKFLOW_EDITOR && (
-                <WorkflowEditorModal
+            {modalState.type === 'detail' && taskForDetailModal && (
+                <TaskDetailModal
                     isOpen={true}
                     onClose={handleCloseModal}
-                    onSave={handleSaveWorkflow}
-                    workflowToEdit={activeWorkflow?.isDefault ? null : activeWorkflow}
+                    task={taskForDetailModal}
+                    taskState={taskStateForDetailModal}
                     prompts={prompts}
                 />
             )}
-            
-            {activeModal === ModalType.WORKFLOW_WIZARD && (
-                <WorkflowWizardModal
+
+            {modalState.type === 'input' && taskForInputModal && (
+                <UserInputModal
                     isOpen={true}
                     onClose={handleCloseModal}
-                    onSave={handleSaveWorkflow}
-                    prompts={prompts}
+                    onStageInput={handleStageInputAndClose}
+                    task={taskForInputModal}
                 />
             )}
         </div>

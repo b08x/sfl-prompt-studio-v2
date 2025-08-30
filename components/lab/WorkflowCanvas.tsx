@@ -1,38 +1,22 @@
 
 
-import React, { useState, useEffect } from 'react';
-import { Workflow, TaskStatus, PromptSFL, DataStore, TaskStateMap } from '../../types';
+
+import React from 'react';
+import { Workflow, TaskStatus, PromptSFL, TaskStateMap, Task, TaskType, DataStore, StagedUserInput } from '../../types';
 import TaskNode from './TaskNode';
-import PlayIcon from '../icons/PlayIcon';
-import ArrowPathIcon from '../icons/ArrowPathIcon';
-import TaskDetailModal from './modals/TaskDetailModal';
 
 interface WorkflowCanvasProps {
     workflow: Workflow;
     prompts: PromptSFL[];
-    dataStore: DataStore;
     taskStates: TaskStateMap;
-    isRunning: boolean;
-    run: () => void;
-    reset: () => void;
     runFeedback: string[];
+    onTaskClick: (task: Task) => void;
+    dataStore: DataStore;
 }
 
-const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflow, prompts, dataStore, taskStates, isRunning, run, reset, runFeedback }) => {
-    const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<string | null>(null);
-
-    // Reset the runner state when the workflow itself changes.
-    useEffect(() => {
-        reset();
-    }, [workflow, reset]);
-
-
-    const handleTaskClick = (taskId: string) => {
-        setSelectedTaskForDetail(taskId);
-    };
+const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflow, prompts, taskStates, runFeedback, onTaskClick, dataStore }) => {
     
-    const taskForModal = workflow.tasks.find(t => t.id === selectedTaskForDetail);
-    const taskStateForModal = selectedTaskForDetail ? taskStates[selectedTaskForDetail] : undefined;
+    const getNested = (obj: any, path: string) => path.split('.').reduce((acc, part) => acc && acc[part], obj);
 
     return (
         <div className="flex-1 flex flex-col bg-gray-900">
@@ -46,26 +30,24 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflow, prompts, data
                     </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {workflow.tasks.map(task => (
-                        <TaskNode
-                            key={task.id}
-                            task={task}
-                            state={taskStates[task.id] || { status: TaskStatus.PENDING }}
-                            onClick={() => handleTaskClick(task.id)}
-                        />
-                    ))}
+                    {workflow.tasks.map(task => {
+                        const hasInputData = task.type === TaskType.DATA_INPUT && task.inputKeys.some(key => {
+                            const value = getNested(dataStore, key);
+                            return value !== undefined && value !== null && value !== '';
+                        });
+
+                        return (
+                             <TaskNode
+                                key={task.id}
+                                task={task}
+                                state={taskStates[task.id] || { status: TaskStatus.PENDING }}
+                                onClick={() => onTaskClick(task)}
+                                hasInputData={hasInputData}
+                            />
+                        );
+                    })}
                 </div>
             </div>
-            
-            {selectedTaskForDetail && taskForModal && (
-                <TaskDetailModal
-                    isOpen={true}
-                    onClose={() => setSelectedTaskForDetail(null)}
-                    task={taskForModal}
-                    taskState={taskStateForModal}
-                    prompts={prompts}
-                />
-            )}
         </div>
     );
 };

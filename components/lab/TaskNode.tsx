@@ -1,5 +1,7 @@
 
 
+
+
 import React from 'react';
 import { Task, TaskState, TaskStatus, TaskType } from '../../types';
 import CodeBracketIcon from '../icons/CodeBracketIcon';
@@ -8,6 +10,7 @@ import DocumentTextIcon from '../icons/DocumentTextIcon';
 import PresentationChartLineIcon from '../icons/PresentationChartLineIcon';
 import EyeIcon from '../icons/EyeIcon';
 import LinkIcon from '../icons/LinkIcon';
+import CheckIcon from '../icons/CheckIcon';
 
 const TaskIcon: React.FC<{ type: TaskType }> = ({ type }) => {
     const commonClasses = "w-5 h-5";
@@ -34,9 +37,10 @@ interface TaskNodeProps {
     task: Task;
     state: TaskState;
     onClick: () => void;
+    hasInputData?: boolean;
 }
 
-const TaskNode: React.FC<TaskNodeProps> = ({ task, state, onClick }) => {
+const TaskNode: React.FC<TaskNodeProps> = ({ task, state, onClick, hasInputData }) => {
     const config = statusConfig[state.status];
 
     const getResultSummary = () => {
@@ -60,6 +64,8 @@ const TaskNode: React.FC<TaskNodeProps> = ({ task, state, onClick }) => {
                     </div>
                     <div className="flex items-center space-x-2">
                         <h3 className="font-semibold text-gray-50">{task.name}</h3>
+                        {/* FIX: The 'title' prop is not valid on the SVG component directly. It should be on a wrapping element like a span to provide a tooltip. */}
+                        {hasInputData && <span title="Input has been staged for this task"><CheckIcon className="w-4 h-4 text-teal-400" /></span>}
                         {task.promptId && <span title="Linked to SFL Prompt Library"><LinkIcon className="w-4 h-4 text-gray-500" /></span>}
                     </div>
                 </div>
