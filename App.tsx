@@ -541,27 +541,37 @@ const App: React.FC = () => {
         case 'dashboard':
             return (
                 <>
-                    <Stats totalPrompts={prompts.length}/>
-                    <div className="mt-8">
-                        <PromptList 
-                            prompts={filteredPrompts} 
-                            onViewPrompt={handleOpenDetailModal}
-                            onEditPrompt={handleOpenEditModal}
-                            onDeletePrompt={handleDeletePrompt}
-                        />
+                    <TopBar
+                      onAddNewPrompt={handleOpenCreateModal}
+                      onOpenWizard={handleOpenWizard}
+                      searchTerm={filters.searchTerm}
+                      onSearchChange={(value) => handleFilterChange('searchTerm', value)}
+                    />
+                    <div className="flex-1 overflow-y-auto p-6">
+                        <Stats totalPrompts={prompts.length}/>
+                        <div className="mt-8">
+                            <PromptList 
+                                prompts={filteredPrompts} 
+                                onViewPrompt={handleOpenDetailModal}
+                                onEditPrompt={handleOpenEditModal}
+                                onDeletePrompt={handleDeletePrompt}
+                            />
+                        </div>
                     </div>
                 </>
             );
         case 'lab':
             return <PromptLabPage prompts={prompts} />;
         case 'documentation':
-            return <Documentation />;
+            return <div className="flex-1 overflow-y-auto p-6"><Documentation /></div>;
         case 'settings':
         default:
              return (
-                <div className="text-center py-20 bg-gray-800 rounded-lg border border-gray-700">
-                    <h2 className="text-2xl font-bold text-gray-50">Coming Soon!</h2>
-                    <p className="text-gray-400 mt-2">This page is under construction.</p>
+                <div className="flex-1 overflow-y-auto p-6">
+                    <div className="text-center py-20 bg-gray-800 rounded-lg border border-gray-700">
+                        <h2 className="text-2xl font-bold text-gray-50">Coming Soon!</h2>
+                        <p className="text-gray-400 mt-2">This page is under construction.</p>
+                    </div>
                 </div>
             );
     }
@@ -588,13 +598,7 @@ const App: React.FC = () => {
         />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar 
-          onAddNewPrompt={handleOpenCreateModal}
-          onOpenWizard={handleOpenWizard}
-          searchTerm={filters.searchTerm}
-          onSearchChange={(value) => handleFilterChange('searchTerm', value)}
-        />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
+        <main className="flex-1 flex flex-col overflow-hidden">
           {renderMainContent()}
         </main>
       </div>

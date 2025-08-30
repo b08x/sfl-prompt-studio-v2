@@ -35,32 +35,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflow, prompts, data
     const taskStateForModal = selectedTaskForDetail ? taskStates[selectedTaskForDetail] : undefined;
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-gray-900">
-            <header className="flex-shrink-0 bg-gray-800/80 backdrop-blur-lg border-b border-gray-700 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-                <div>
-                    <h2 className="text-xl font-bold text-gray-50">{workflow.name}</h2>
-                    <p className="text-sm text-gray-400">{workflow.description}</p>
-                </div>
-                <div className="flex items-center space-x-3">
-                    <button
-                        onClick={() => reset()}
-                        disabled={isRunning}
-                        className="flex items-center space-x-2 bg-gray-700 text-gray-200 border border-gray-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-600 transition-colors shadow-sm disabled:opacity-50"
-                    >
-                        <ArrowPathIcon className="w-5 h-5" />
-                        <span>Reset</span>
-                    </button>
-                    <button
-                        onClick={() => run()}
-                        disabled={isRunning}
-                        className="flex items-center space-x-2 bg-teal-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm disabled:opacity-50"
-                    >
-                        {isRunning ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin"></div> : <PlayIcon className="w-5 h-5" />}
-                        <span>{isRunning ? 'Running...' : 'Run Workflow'}</span>
-                    </button>
-                </div>
-            </header>
-
+        <div className="flex-1 flex flex-col bg-gray-900">
             <div className="flex-1 overflow-y-auto p-6">
                  {runFeedback.length > 0 && (
                     <div className="mb-4 p-3 bg-amber-900/50 border-l-4 border-amber-500 text-amber-300 text-xs rounded-r-lg">
