@@ -8,9 +8,10 @@ interface PromptListProps {
   onViewPrompt: (prompt: PromptSFL) => void;
   onEditPrompt: (prompt: PromptSFL) => void;
   onDeletePrompt: (promptId: string) => void;
+  onCopyToMarkdown: (prompt: PromptSFL) => void;
 }
 
-const PromptList: React.FC<PromptListProps> = ({ prompts, onViewPrompt, onEditPrompt, onDeletePrompt }) => {
+const PromptList: React.FC<PromptListProps> = ({ prompts, onViewPrompt, onEditPrompt, onDeletePrompt, onCopyToMarkdown }) => {
   if (prompts.length === 0) {
     return (
       <div className="text-center py-10 bg-gray-800 rounded-lg border border-gray-700">
@@ -30,6 +31,7 @@ const PromptList: React.FC<PromptListProps> = ({ prompts, onViewPrompt, onEditPr
           onView={onViewPrompt}
           onEdit={onEditPrompt}
           onDelete={onDeletePrompt}
+          onCopyToMarkdown={onCopyToMarkdown}
         />
       ))}
     </div>

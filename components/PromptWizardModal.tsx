@@ -32,6 +32,7 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
     const [formData, setFormData] = useState<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>>(INITIAL_PROMPT_SFL);
     const [newOptionValues, setNewOptionValues] = useState<Record<string, string>>({});
     const [regenState, setRegenState] = useState({ shown: false, suggestion: '', loading: false });
+    const [isUpdating, setIsUpdating] = useState(false);
     const [sourceDoc, setSourceDoc] = useState<{name: string, content: string} | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -158,6 +159,20 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
           setRegenState(prev => ({ ...prev, loading: false }));
         }
     };
+
+    const handleUpdateFromSFL = async () => {
+        setIsUpdating(true);
+        setErrorMessage('');
+        try {
+            const suggestion = "The SFL fields (Field, Tenor, Mode) have been manually updated by the user. Please regenerate the 'promptText', 'title', 'exampleOutput', and 'notes' to be fully consistent with the updated SFL data. The core goal of the prompt should be preserved, but its expression and details must align with the new SFL parameters.";
+            const regeneratedData = await regenerateSFLFromSuggestion(formData, suggestion);
+            setFormData(regeneratedData);
+        } catch (error: any) {
+            alert('Failed to update prompt: ' + (error.message || 'Unknown error'));
+        } finally {
+            setIsUpdating(false);
+        }
+    };
     
     const renderCreatableSelect = <
         K extends 'sflField' | 'sflTenor' | 'sflMode',
@@ -202,7 +217,7 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
 
             <div className="my-2 text-right">
                 <button type="button" onClick={() => setRegenState(prev => ({...prev, shown: !prev.shown, suggestion: ''}))} className="text-sm text-blue-400 hover:text-blue-300 flex items-center justify-end">
-                    <SparklesIcon className="w-5 h-5 mr-1"/> Refine Prompt with AI
+                    <SparklesIcon className="w-5 h-5 mr-1"/> Refine with Suggestion
                 </button>
             </div>
             
@@ -342,6 +357,16 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
                        {renderRefinementForm()}
                        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-700 mt-6">
                             <button type="button" onClick={handleReset} className="px-4 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600">Start Over</button>
+                            <button
+                                type="button"
+                                onClick={handleUpdateFromSFL}
+                                disabled={isUpdating}
+                                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-md hover:bg-violet-700 disabled:bg-opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isUpdating && <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin mr-2"></div>}
+                                {!isUpdating && <SparklesIcon className="w-5 h-5 mr-2" />}
+                                {isUpdating ? 'Updating...' : 'Update from SFL'}
+                            </button>
                             <button type="button" onClick={handleSave} className="px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600">Save Prompt</button>
                        </div>
                    </div>

@@ -540,6 +540,21 @@ const App: React.FC = () => {
     handleCloseModal();
   };
 
+  const handleCopyToMarkdown = (prompt: PromptSFL) => {
+    try {
+      const markdown = promptToMarkdown(prompt);
+      navigator.clipboard.writeText(markdown).then(() => {
+        // The UI on the card will give feedback, so a silent success is fine.
+      }, (err) => {
+        console.error('Could not copy markdown to clipboard: ', err);
+        alert('Failed to copy markdown to clipboard.');
+      });
+    } catch (error) {
+      console.error("Error generating markdown for prompt:", error);
+      alert("An error occurred while generating markdown for this prompt.");
+    }
+  };
+
 
   const renderMainContent = () => {
     switch(activePage) {
@@ -560,6 +575,7 @@ const App: React.FC = () => {
                                 onViewPrompt={handleOpenDetailModal}
                                 onEditPrompt={handleOpenEditModal}
                                 onDeletePrompt={handleDeletePrompt}
+                                onCopyToMarkdown={handleCopyToMarkdown}
                             />
                         </div>
                     </div>

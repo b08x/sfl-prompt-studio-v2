@@ -8,6 +8,11 @@ import ArrowsRightLeftIcon from './icons/ArrowsRightLeftIcon';
 import GlobeAltIcon from './icons/GlobeAltIcon';
 import WrenchScrewdriverIcon from './icons/WrenchScrewdriverIcon';
 import AcademicCapIcon from './icons/AcademicCapIcon';
+import EyeIcon from './icons/EyeIcon';
+import PencilIcon from './icons/PencilIcon';
+import TrashIcon from './icons/TrashIcon';
+import ClipboardIcon from './icons/ClipboardIcon';
+import CheckIcon from './icons/CheckIcon';
 
 
 interface PromptCardProps {
@@ -15,6 +20,7 @@ interface PromptCardProps {
   onView: (prompt: PromptSFL) => void;
   onEdit: (prompt: PromptSFL) => void;
   onDelete: (promptId: string) => void;
+  onCopyToMarkdown: (prompt: PromptSFL) => void;
 }
 
 const getTaskIcon = (taskType: string) => {
@@ -31,8 +37,9 @@ const getTaskIcon = (taskType: string) => {
     }
 }
 
-const PromptCard: React.FC<PromptCardProps> = ({ prompt, onView, onEdit, onDelete }) => {
+const PromptCard: React.FC<PromptCardProps> = ({ prompt, onView, onEdit, onDelete, onCopyToMarkdown }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const isTested = !!prompt.geminiResponse;
@@ -60,6 +67,15 @@ const PromptCard: React.FC<PromptCardProps> = ({ prompt, onView, onEdit, onDelet
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuRef]);
 
+  const handleCopy = () => {
+    onCopyToMarkdown(prompt);
+    setCopied(true);
+    setTimeout(() => {
+        setCopied(false);
+        setMenuOpen(false);
+    }, 1500);
+  };
+
   return (
     <div className="bg-gray-800 shadow-sm rounded-lg p-5 border border-gray-700 hover:shadow-lg hover:border-gray-600 transition-all duration-200 flex flex-col justify-between">
       <div>
@@ -81,10 +97,24 @@ const PromptCard: React.FC<PromptCardProps> = ({ prompt, onView, onEdit, onDelet
                     <EllipsisVerticalIcon className="w-5 h-5" />
                 </button>
                 {menuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-gray-900 rounded-md shadow-lg z-10 border border-gray-700">
-                    <button onClick={() => { onView(prompt); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700">View Details</button>
-                    <button onClick={() => { onEdit(prompt); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700">Edit</button>
-                    <button onClick={() => { onDelete(prompt.id); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/20">Delete</button>
+                    <div className="absolute right-0 mt-2 w-52 bg-gray-900 rounded-md shadow-lg z-10 border border-gray-700 py-1">
+                        <button onClick={() => { onView(prompt); setMenuOpen(false); }} className="flex items-center space-x-3 w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded-md mx-1">
+                            <EyeIcon className="w-4 h-4"/>
+                            <span>View Details</span>
+                        </button>
+                        <button onClick={() => { onEdit(prompt); setMenuOpen(false); }} className="flex items-center space-x-3 w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded-md mx-1">
+                            <PencilIcon className="w-4 h-4"/>
+                            <span>Edit</span>
+                        </button>
+                         <button onClick={handleCopy} className={`flex items-center space-x-3 w-full text-left px-3 py-2 text-sm transition-colors rounded-md mx-1 ${copied ? 'text-teal-400 bg-teal-500/10' : 'text-gray-200 hover:bg-gray-700'}`}>
+                            {copied ? <CheckIcon className="w-4 h-4" /> : <ClipboardIcon className="w-4 h-4" />}
+                            <span>{copied ? 'Copied!' : 'Copy as Markdown'}</span>
+                        </button>
+                        <div className="my-1 border-t border-gray-700"></div>
+                        <button onClick={() => { onDelete(prompt.id); setMenuOpen(false); }} className="flex items-center space-x-3 w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-md mx-1">
+                            <TrashIcon className="w-4 h-4"/>
+                            <span>Delete</span>
+                        </button>
                     </div>
                 )}
             </div>
