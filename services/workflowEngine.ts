@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
 import { Task, DataStore, AgentConfig, PromptSFL } from '../types';
 
@@ -103,16 +102,21 @@ const executeTextManipulation = (funcBody: string, inputs: Record<string, any>):
 export const executeTask = async (task: Task, dataStore: DataStore, prompts: PromptSFL[]): Promise<any> => {
     const inputs: Record<string, any> = {};
     for (const key of task.inputKeys) {
-        inputs[key] = getNested(dataStore, key);
-        if (inputs[key] === undefined) {
-             throw new Error(`Missing required input key "${key}" in data store for task "${task.name}".`);
+        const isOptional = key.endsWith('?');
+        const actualKey = isOptional ? key.slice(0, -1) : key;
+        const value = getNested(dataStore, actualKey);
+
+        if (value !== undefined) {
+            inputs[actualKey] = value;
+        } else if (!isOptional) {
+             throw new Error(`Missing required input key "${actualKey}" in data store for task "${task.name}".`);
         }
     }
     
-    // For TEXT_MANIPULATION, we pass an object of all resolved inputs
-    const resolvedInputs = task.inputKeys.reduce((acc, key) => {
-        const simpleKey = key.split('.').pop() || key;
-        acc[simpleKey] = getNested(dataStore, key);
+    // For TEXT_MANIPULATION, we pass an object of all resolved inputs with simplified keys
+    const resolvedInputs = Object.entries(inputs).reduce((acc, [fullKey, value]) => {
+        const simpleKey = fullKey.split('.').pop() || fullKey;
+        acc[simpleKey] = value;
         return acc;
     }, {} as Record<string, any>);
 
@@ -163,14 +167,19 @@ export const executeTask = async (task: Task, dataStore: DataStore, prompts: Pro
             if (!task.promptTemplate) throw new Error("Prompt template is missing.");
 
             // Assume the first input key points to the image data object.
-            const imageInputKey = task.inputKeys[0];
-            if (!imageInputKey) {
+            const imageInputKeyWithOptional = task.inputKeys[0];
+            if (!imageInputKeyWithOptional) {
                 throw new Error("IMAGE_ANALYSIS task must have at least one input key pointing to the image data.");
             }
             
-            // The `inputs` object has the resolved value from the data store.
+            const imageInputKey = imageInputKeyWithOptional.endsWith('?') ? imageInputKeyWithOptional.slice(0, -1) : imageInputKeyWithOptional;
+            
             const imageData = inputs[imageInputKey];
             if (!imageData || typeof imageData.base64 !== 'string' || typeof imageData.type !== 'string') {
+                // Gracefully handle missing optional image
+                if (imageInputKeyWithOptional.endsWith('?')) {
+                    return ""; // Return empty string for missing optional image
+                }
                 throw new Error(`Image data from key "${imageInputKey}" is missing, malformed, or not found in inputs.`);
             }
 

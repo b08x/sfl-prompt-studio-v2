@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Workflow, PromptSFL } from '../../../types';
 import { generateWorkflowFromGoal } from '../../../services/geminiService';
 import ModalShell from '../../ModalShell';
 import WorkflowEditorModal from './WorkflowEditorModal';
+
 
 interface WorkflowWizardModalProps {
     isOpen: boolean;
@@ -50,13 +52,15 @@ const WorkflowWizardModal: React.FC<WorkflowWizardModalProps> = ({ isOpen, onClo
                 return (
                     <div className="space-y-4">
                         <p className="text-gray-300">Describe the multi-step process you want to automate. The AI will generate a structured workflow with all the necessary tasks, inputs, and outputs.</p>
-                        <textarea
-                            value={goal}
-                            onChange={(e) => setGoal(e.target.value)}
-                            rows={5}
-                            placeholder="e.g., 'Take a user-provided article URL, fetch its content, summarize it, and then translate the summary into Spanish.'"
-                            className="w-full p-2 bg-gray-900 border border-gray-700 text-gray-50 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
+                        <div>
+                            <textarea
+                                value={goal}
+                                onChange={(e) => setGoal(e.target.value)}
+                                rows={5}
+                                placeholder="e.g., 'Take a user-provided article URL, fetch its content, summarize it, and then translate the summary into Spanish.'"
+                                className="w-full p-2 bg-gray-900 border border-gray-700 text-gray-50 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                        </div>
                         {errorMessage && <p className="text-red-400 text-sm">{errorMessage}</p>}
                         <div className="flex justify-end space-x-2">
                              <button onClick={handleCloseAndReset} className="px-4 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600">Cancel</button>

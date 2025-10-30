@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { PromptSFL } from '../types';
 import { generateSFLFromGoal, regenerateSFLFromSuggestion } from '../services/geminiService';
 import { INITIAL_PROMPT_SFL } from '../constants';

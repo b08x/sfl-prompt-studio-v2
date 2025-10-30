@@ -135,3 +135,5 @@ export interface StagedUserInput {
         content: string;
     }
 }
+
+export type TranscriptEntry = { speaker: 'user' | 'model' | 'system'; text: string };

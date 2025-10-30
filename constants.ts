@@ -201,5 +201,56 @@ export const DEFAULT_WORKFLOWS: Workflow[] = [
         agentConfig: { model: 'gemini-2.5-flash', temperature: 0.5 }
       }
     ]
+  },
+  {
+    id: "wf-perlocutionary-default",
+    name: "Perlocutionary Effect Forecaster",
+    description: "Analyzes obfuscated communication from text, a file, or an image to forecast social and emotional fallout, calculating key risk metrics.",
+    isDefault: true,
+    tasks: [
+      {
+        id: "pef-task-1",
+        name: "Analyze Image Content",
+        description: "If an image is provided, analyzes its content for potential hidden meaning or sentiment.",
+        type: TaskType.IMAGE_ANALYSIS,
+        dependencies: [],
+        inputKeys: ["userInput.image?"],
+        outputKey: "imageAnalysisResult",
+        promptTemplate: "Thoroughly describe the visual elements and any text in this image. Focus on aspects that could convey subtle, indirect, or emotionally-charged messages. What is the potential perlocutionary effect of this image?",
+        agentConfig: { model: 'gemini-2.5-flash' }
+      },
+      {
+        id: "pef-task-2",
+        name: "Capture Obfuscated Prompt",
+        description: "Consolidates input from text, a file, or image analysis into a single prompt for forecasting.",
+        type: TaskType.TEXT_MANIPULATION,
+        dependencies: ["pef-task-1"],
+        inputKeys: ["userInput.text?", "userInput.file.content?", "imageAnalysisResult?"],
+        outputKey: "obfuscatedPrompt",
+        functionBody: "return inputs.text || inputs.content || inputs.imageAnalysisResult || 'No input provided. Please provide text, a file, or an image.';"
+      },
+      {
+        id: "pef-task-3",
+        name: "Forecast Perlocutionary Effects",
+        description: "Analyzes the obfuscated text to predict its social and emotional impact and calculate specific risk metrics.",
+        type: TaskType.GEMINI_PROMPT,
+        dependencies: ["pef-task-2"],
+        inputKeys: ["obfuscatedPrompt"],
+        outputKey: "perlocutionaryMetrics",
+        promptTemplate: `Given the following potentially obfuscated communication, analyze its perlocutionary effects. Identify the likely emotional responses (e.g., anger, confusion, reassurance) and social consequences (e.g., loss of trust, increased cohesion, conflict initiation). Output your analysis as a JSON object with keys "emotional_responses" (an array of strings) and "social_consequences" (an array of strings).\n\nCommunication:\n"{{obfuscatedPrompt}}"`,
+        agentConfig: { model: 'gemini-2.5-flash', temperature: 0.3 }
+      },
+      {
+        id: "pef-task-4",
+        name: "Generate Risk Assessment Report",
+        description: "Compiles the forecasted perlocutionary effects and risk metrics into a structured report.",
+        type: TaskType.GEMINI_PROMPT,
+        dependencies: ["pef-task-3"],
+        inputKeys: ["perlocutionaryMetrics", "obfuscatedPrompt"],
+        outputKey: "riskAssessmentReport",
+        promptTemplate: `Based on the following analysis of perlocutionary effects, generate a concise risk assessment report in Markdown format. The report should summarize the findings and assign a risk level (Low, Medium, High).\n\nOriginal Communication:\n"{{obfuscatedPrompt}}"\n\nAnalysis:\n{{perlocutionaryMetrics}}`,
+        agentConfig: { model: 'gemini-2.5-flash', temperature: 0.5 }
+      }
+    ]
   }
 ];

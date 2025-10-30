@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PromptSFL, Filters, ModalType, Workflow, Task, DataStore, StagedUserInput } from './types';
 import Sidebar from './components/Sidebar';
@@ -629,9 +628,6 @@ const App: React.FC = () => {
         onNavigate={handleNavigate}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
-
-        // Lab
-        dataStore={dataStore}
       />
        <input
             type="file"

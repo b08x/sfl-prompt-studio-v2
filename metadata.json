@@ -1,6 +1,8 @@
 {
   "name": "SFL Prompt Studio",
   "description": "A UI for managing and categorizing AI prompts based on the Systemic Functional Linguistic (SFL) framework. Allows users to create, store, filter, and test prompts with Gemini, featuring detailed SFL metadata for better understanding and refinement of AI interactions.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "microphone"
+  ],
   "prompt": ""
 }

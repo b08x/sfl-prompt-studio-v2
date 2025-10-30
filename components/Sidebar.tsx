@@ -1,7 +1,4 @@
 
-
-
-
 import React from 'react';
 import { Filters, DataStore, StagedUserInput } from '../types';
 import BrainCircuitIcon from './icons/BrainCircuitIcon';
@@ -33,9 +30,6 @@ interface SidebarProps {
   onNavigate: (page: Page) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-
-  // Lab
-  dataStore: DataStore;
 }
 
 const NavItem: React.FC<{ icon: React.ComponentType<{ className?: string }>; label: string; active?: boolean; onClick: () => void; isCollapsed: boolean; }> = ({ icon: Icon, label, active, onClick, isCollapsed }) => (
@@ -63,7 +57,6 @@ const FilterItem: React.FC<{ icon: React.ComponentType<{ className?: string }>; 
 const Sidebar: React.FC<SidebarProps> = ({ 
     filters, onFilterChange, popularTags, 
     activePage, onNavigate, isCollapsed, onToggleCollapse,
-    dataStore
 }) => {
     const taskTypes = ["Explanation", "Code Generation", "Summarization", "Translation"];
     const taskIcons: { [key: string]: React.ComponentType<{ className?: string }> } = {
@@ -154,12 +147,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                     )}
                 </>
-              )}
-
-              {activePage === 'lab' && !isCollapsed && (
-                  <div className="flex-grow flex flex-col min-h-0 bg-gray-900 rounded-lg border border-gray-700">
-                      <div className="h-full"><DataStoreViewer dataStore={dataStore} /></div>
-                  </div>
               )}
             </div>
         </div>
