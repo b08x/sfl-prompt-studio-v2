@@ -1,11 +1,16 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { PromptSFL, SFLField, SFLTenor, SFLMode, TranscriptEntry } from '../../types';
+import { PromptSFL, SFLField, SFLTenor, SFLMode, TranscriptEntry, Workflow, TaskType, Task } from '../../types';
 import { useLiveConversation } from '../../hooks/useLiveConversation';
 import MicrophoneIcon from '../icons/MicrophoneIcon';
 import StopIcon from '../icons/StopIcon';
 import UserCircleIcon from '../icons/UserCircleIcon';
 import SparklesIcon from '../icons/SparklesIcon';
-import CogIcon from '../icons/CogIcon';
+import BeakerIcon from '../icons/BeakerIcon';
+import WorkflowIcon from '../icons/WorkflowIcon';
+import ArrowDownTrayIcon from '../icons/ArrowDownTrayIcon';
+import TestResponseModal from './TestResponseModal';
+import { promptToMarkdown, sanitizeFilename } from '../../utils/exportUtils';
+
 
 const SFLDetail: React.FC<{ label: string, value: string | string[] | undefined }> = ({ label, value }) => {
     const displayValue = Array.isArray(value) ? value.join(', ') : value;
@@ -71,9 +76,15 @@ const TranscriptViewer: React.FC<{ transcript: TranscriptEntry[] }> = ({ transcr
 );
 
 
-const PromptRefinementStudio: React.FC<{ prompts: PromptSFL[] }> = ({ prompts }) => {
+interface PromptRefinementStudioProps {
+    prompts: PromptSFL[];
+    onTestInWorkflow: (workflow: Workflow) => void;
+}
+
+const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ prompts, onTestInWorkflow }) => {
     const [selectedPromptId, setSelectedPromptId] = useState<string>(prompts[0]?.id || '');
     const [editablePrompt, setEditablePrompt] = useState<PromptSFL | null>(prompts.find(p => p.id === selectedPromptId) || null);
+    const [isTestModalOpen, setIsTestModalOpen] = useState(false);
 
     useEffect(() => {
         setEditablePrompt(prompts.find(p => p.id === selectedPromptId) || null);
@@ -105,11 +116,78 @@ const PromptRefinementStudio: React.FC<{ prompts: PromptSFL[] }> = ({ prompts })
     });
     
     const isConversing = status === 'active' || status === 'connecting';
+    
+    const handleExportMarkdown = () => {
+        if (!editablePrompt) return;
+        try {
+            const markdownData = promptToMarkdown(editablePrompt);
+            const blob = new Blob([markdownData], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const date = new Date().toISOString().slice(0, 10);
+            const sanitizedTitle = sanitizeFilename(editablePrompt.title || "untitled");
+            a.href = url;
+            a.download = `sfl-prompt_${sanitizedTitle}_${date}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error("Error exporting prompt as markdown:", error);
+            alert("An error occurred while exporting the prompt as markdown.");
+        }
+    };
+    
+    const handleTestInWorkflow = () => {
+        if (!editablePrompt) return;
+
+        const variables = editablePrompt.promptText.match(/{{\s*(\w+)\s*}}/g)
+            ?.map(v => v.replace(/{{\s*|\s*}}/g, '')) || [];
+        // FIX: Explicitly providing the generic type to `new Set` ensures that TypeScript
+        // correctly infers the resulting array as `string[]` instead of `unknown[]`.
+        const uniqueVars: string[] = [...new Set<string>(variables)];
+
+        // For simplicity, we create one input task that feeds the first variable found.
+        const mainInputVar = uniqueVars.length > 0 ? uniqueVars[0] : 'mainInput';
+        const requiresInput = uniqueVars.length > 0;
+        
+        const promptTask: Task = {
+            id: 'task-2-prompt',
+            name: editablePrompt.title,
+            description: 'Executes the SFL prompt from the ideation studio.',
+            type: TaskType.GEMINI_PROMPT,
+            dependencies: requiresInput ? ['task-1-input'] : [],
+            inputKeys: requiresInput ? [mainInputVar] : [],
+            outputKey: 'promptResult',
+            promptId: editablePrompt.id,
+        };
+
+        const workflow: Workflow = {
+            id: `wf-test-${editablePrompt.id.slice(0, 8)}`,
+            name: `Test: ${editablePrompt.title}`,
+            description: `A temporary workflow to test the '${editablePrompt.title}' prompt.`,
+            tasks: requiresInput ? [
+                {
+                    id: 'task-1-input',
+                    name: 'User Input',
+                    description: `Accepts text input from the user for the {{${mainInputVar}}} variable.`,
+                    type: TaskType.DATA_INPUT,
+                    dependencies: [],
+                    inputKeys: ['userInput.text'],
+                    outputKey: mainInputVar,
+                    staticValue: '{{userInput.text}}'
+                },
+                promptTask
+            ] : [promptTask],
+            isDefault: false,
+        };
+        onTestInWorkflow(workflow);
+    };
+
 
     return (
+      <>
         <div className="grid grid-cols-1 lg:grid-cols-2 h-full overflow-hidden">
             {/* Left Pane: SFL Prompt Details */}
-            <div className="flex flex-col h-full border-r border-gray-700">
+            <div className="flex flex-col h-full border-r border-gray-700 bg-gray-800/50">
                 <div className="p-4 border-b border-gray-700 flex-shrink-0">
                     <label htmlFor="prompt-select" className="block text-sm font-medium text-gray-400 mb-1">Select Prompt to Refine</label>
                     <select
@@ -122,8 +200,37 @@ const PromptRefinementStudio: React.FC<{ prompts: PromptSFL[] }> = ({ prompts })
                         {prompts.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
                     </select>
                 </div>
-                <div className="p-4 overflow-y-auto">
+                <div className="p-4 overflow-y-auto flex-grow">
                     {editablePrompt ? <SFLViewer prompt={editablePrompt} /> : <p className="text-gray-400">Select a prompt to begin.</p>}
+                </div>
+                 <div className="flex-shrink-0 p-3 border-t border-gray-700 bg-gray-900/50 flex items-center justify-end space-x-3">
+                    <button
+                        onClick={() => setIsTestModalOpen(true)}
+                        disabled={!editablePrompt}
+                        className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
+                        title="Test prompt response"
+                    >
+                        <BeakerIcon className="w-4 h-4" />
+                        <span>Test Response</span>
+                    </button>
+                    <button
+                         onClick={handleTestInWorkflow}
+                         disabled={!editablePrompt}
+                        className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
+                        title="Test prompt in a workflow"
+                    >
+                        <WorkflowIcon className="w-4 h-4" />
+                        <span>Test in Workflow</span>
+                    </button>
+                    <button
+                        onClick={handleExportMarkdown}
+                        disabled={!editablePrompt}
+                        className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
+                        title="Export as Markdown"
+                    >
+                        <ArrowDownTrayIcon className="w-4 h-4" />
+                        <span>Export MD</span>
+                    </button>
                 </div>
             </div>
 
@@ -153,6 +260,14 @@ const PromptRefinementStudio: React.FC<{ prompts: PromptSFL[] }> = ({ prompts })
                 </div>
             </div>
         </div>
+        {isTestModalOpen && editablePrompt && (
+            <TestResponseModal 
+                isOpen={isTestModalOpen}
+                onClose={() => setIsTestModalOpen(false)}
+                prompt={editablePrompt}
+            />
+        )}
+      </>
     );
 };
 

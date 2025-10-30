@@ -30,6 +30,7 @@ interface PromptLabPageProps {
     onImportWorkflows: (workflows: Workflow[]) => void;
     onStageInput: (input: StagedUserInput) => void;
     dataStore: DataStore;
+    saveWorkflow: (workflow: Workflow) => void;
 }
 
 type LabTab = 'workflow' | 'ideation';
@@ -51,6 +52,7 @@ const PromptLabPage: React.FC<PromptLabPageProps> = ({
     onImportWorkflows,
     onStageInput,
     dataStore,
+    saveWorkflow,
 }) => {
     const [modalState, setModalState] = useState<{type: 'detail' | 'none', taskId: string | null}>({type: 'none', taskId: null});
     const [activeTab, setActiveTab] = useState<LabTab>('workflow');
@@ -65,6 +67,12 @@ const PromptLabPage: React.FC<PromptLabPageProps> = ({
     
     const taskForDetailModal = activeWorkflow?.tasks.find(t => t.id === modalState.taskId);
     const taskStateForDetailModal = modalState.taskId ? taskStates[modalState.taskId] : undefined;
+
+    const handleTestInWorkflow = (workflow: Workflow) => {
+        saveWorkflow(workflow);
+        onSelectWorkflow(workflow.id);
+        setActiveTab('workflow');
+    };
 
     const TabButton: React.FC<{ tabId: LabTab; icon: React.ReactNode; label: string }> = ({ tabId, icon, label }) => (
         <button
@@ -179,7 +187,10 @@ const PromptLabPage: React.FC<PromptLabPageProps> = ({
                     </>
                 )}
                 {activeTab === 'ideation' && (
-                    <PromptRefinementStudio prompts={prompts} />
+                    <PromptRefinementStudio 
+                        prompts={prompts} 
+                        onTestInWorkflow={handleTestInWorkflow}
+                    />
                 )}
             </div>
 

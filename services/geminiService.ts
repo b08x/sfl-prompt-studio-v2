@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
 import { PromptSFL, Workflow } from '../types';
 
 const API_KEY = process.env.API_KEY;
@@ -14,10 +14,34 @@ const ai = new GoogleGenAI({ apiKey: API_KEY || "MISSING_API_KEY" }); // Fallbac
 
 const parseJsonFromText = (text: string) => {
   let jsonStr = text.trim();
-  const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
-  const match = jsonStr.match(fenceRegex);
-  if (match && match[2]) {
-    jsonStr = match[2].trim();
+  
+  // This regex finds the first JSON code block anywhere in the text.
+  const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/s);
+
+  if (fenceMatch && fenceMatch[1]) {
+    jsonStr = fenceMatch[1].trim();
+  } else {
+    // If no fences, find the first complete JSON object.
+    // This is more robust against extra text after the JSON.
+    const firstBrace = jsonStr.indexOf('{');
+    if (firstBrace !== -1) {
+      let braceCount = 0;
+      let lastBrace = -1;
+      for (let i = firstBrace; i < jsonStr.length; i++) {
+        if (jsonStr[i] === '{') {
+          braceCount++;
+        } else if (jsonStr[i] === '}') {
+          braceCount--;
+        }
+        if (braceCount === 0) {
+          lastBrace = i;
+          break;
+        }
+      }
+      if (lastBrace !== -1) {
+        jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
+      }
+    }
   }
   
   // Attempt to fix common invalid JSON from LLMs. This is a defensive measure.
