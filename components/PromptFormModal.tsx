@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { PromptSFL, SFLField, SFLTenor, SFLMode } from '../types';
+import { PromptSFL, SFLField, SFLTenor, SFLMode, PromptVersion } from '../types';
 import { TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS, INITIAL_PROMPT_SFL } from '../constants';
 import ModalShell from './ModalShell';
 import { regenerateSFLFromSuggestion } from '../services/geminiService';
@@ -27,7 +27,7 @@ interface PromptFormModalProps {
 }
 
 const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSave, promptToEdit, appConstants, onAddConstant }) => {
-  const [formData, setFormData] = useState<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>>(INITIAL_PROMPT_SFL);
+  const [formData, setFormData] = useState<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history'>>(INITIAL_PROMPT_SFL);
   const [newOptionValues, setNewOptionValues] = useState<Record<string, string>>({});
   const [regenState, setRegenState] = useState({ shown: false, suggestion: '', loading: false });
   const [validationIssues, setValidationIssues] = useState<ValidationResult[]>([]);
@@ -36,7 +36,7 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
   useEffect(() => {
     if (promptToEdit) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { id, createdAt, updatedAt, geminiResponse, geminiTestError, isTesting, ...editableData } = promptToEdit;
+      const { id, createdAt, updatedAt, geminiResponse, geminiTestError, isTesting, version, history, ...editableData } = promptToEdit;
       setFormData(editableData);
     } else {
       setFormData(INITIAL_PROMPT_SFL);
@@ -57,9 +57,9 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
   }, [formData, promptToEdit]);
 
 
-  const handleChange = <T extends keyof Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'sflField' | 'sflTenor' | 'sflMode' | 'geminiResponse' | 'geminiTestError' | 'isTesting'>>(
+  const handleChange = <T extends keyof Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'sflField' | 'sflTenor' | 'sflMode' | 'geminiResponse' | 'geminiTestError' | 'isTesting' | 'version' | 'history'>>(
     field: T,
-    value: Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>[T]
+    value: Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history'>[T]
   ) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -105,7 +105,14 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
     if (!regenState.suggestion.trim()) return;
     setRegenState(prev => ({ ...prev, loading: true }));
     try {
-      const regeneratedData = await regenerateSFLFromSuggestion(formData, regenState.suggestion);
+      // FIX: The `regenerateSFLFromSuggestion` function expects a more complete prompt object,
+      // including versioning information. We construct it here before passing it.
+      const promptForRegeneration = {
+        ...formData,
+        version: promptToEdit?.version ?? 1,
+        history: promptToEdit?.history ?? [],
+      };
+      const regeneratedData = await regenerateSFLFromSuggestion(promptForRegeneration, regenState.suggestion);
       setFormData(regeneratedData);
       setRegenState({ shown: false, suggestion: '', loading: false });
     } catch (error) {
@@ -137,23 +144,50 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const now = new Date().toISOString();
-    const finalPrompt: PromptSFL = {
-      ...formData,
-      id: promptToEdit?.id || crypto.randomUUID(),
-      createdAt: promptToEdit?.createdAt || now,
-      updatedAt: now,
-      geminiResponse: promptToEdit?.geminiResponse, 
-      geminiTestError: promptToEdit?.geminiTestError,
-      isTesting: promptToEdit?.isTesting ?? false,
-    };
-    onSave(finalPrompt);
+
+    if (promptToEdit) {
+      // Create a version from the state *before* editing
+      const previousVersion: PromptVersion = {
+        version: promptToEdit.version,
+        promptText: promptToEdit.promptText,
+        sflField: promptToEdit.sflField,
+        sflTenor: promptToEdit.sflTenor,
+        sflMode: promptToEdit.sflMode,
+        exampleOutput: promptToEdit.exampleOutput,
+        notes: promptToEdit.notes,
+        sourceDocument: promptToEdit.sourceDocument,
+        createdAt: promptToEdit.updatedAt,
+      };
+
+      const finalPrompt: PromptSFL = {
+        ...promptToEdit, // Carry over id, createdAt, etc.
+        ...formData, // Apply the new form data
+        updatedAt: now,
+        version: promptToEdit.version + 1,
+        history: [...(promptToEdit.history || []), previousVersion],
+      };
+      onSave(finalPrompt);
+    } else {
+      // This is a new prompt
+      const finalPrompt: PromptSFL = {
+        ...formData,
+        id: crypto.randomUUID(),
+        createdAt: now,
+        updatedAt: now,
+        version: 1, // First version
+        history: [], // No history yet
+        isTesting: false,
+      };
+      onSave(finalPrompt);
+    }
     onClose();
   };
+
 
   const commonInputClasses = "w-full px-3 py-2 bg-gray-900 border border-gray-700 text-gray-50 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors placeholder-gray-500";
   const labelClasses = "block text-sm font-medium text-gray-300 mb-1";
 
-  const renderTextField = (label: string, name: keyof Omit<PromptSFL, 'id'|'createdAt'|'updatedAt'|'sflField'|'sflTenor'|'sflMode' | 'geminiResponse' | 'geminiTestError' | 'isTesting'>, placeholder?: string, isTextArea = false) => (
+  const renderTextField = (label: string, name: keyof Omit<PromptSFL, 'id'|'createdAt'|'updatedAt'|'sflField'|'sflTenor'|'sflMode' | 'geminiResponse' | 'geminiTestError' | 'isTesting' | 'version' | 'history'>, placeholder?: string, isTextArea = false) => (
     <div>
       <label htmlFor={name} className={labelClasses}>{label}</label>
       {isTextArea ? (
@@ -251,7 +285,7 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
   );
   
   return (
-    <ModalShell isOpen={isOpen} onClose={onClose} title={promptToEdit ? "Edit Prompt" : "Create New Prompt"} size="3xl">
+    <ModalShell isOpen={isOpen} onClose={onClose} title={promptToEdit ? `Edit Prompt (Version ${promptToEdit.version + 1})` : "Create New Prompt"} size="3xl">
       <form onSubmit={handleSubmit} className="space-y-6">
         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".txt,.md,.text" />
         {renderTextField('Title', 'title', 'Enter a concise title for the prompt')}

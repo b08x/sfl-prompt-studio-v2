@@ -16,7 +16,8 @@ const parseJsonFromText = (text: string) => {
   let jsonStr = text.trim();
   
   // This regex finds the first JSON code block anywhere in the text.
-  const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/s);
+  // FIX: Allow for various language identifiers like 'markdown' or others.
+  const fenceMatch = jsonStr.match(/```(?:\w+)?\s*([\s\S]*?)\s*```/s);
 
   if (fenceMatch && fenceMatch[1]) {
     jsonStr = fenceMatch[1].trim();
@@ -128,6 +129,7 @@ export const generateSFLFromGoal = async (goal: string, sourceDocContent?: strin
     const systemInstruction = `You are an expert in Systemic Functional Linguistics (SFL) and AI prompt engineering. Your task is to analyze a user's goal and structure it into a detailed SFL-based prompt.
     If a source document is provided for stylistic reference, you MUST analyze its style (e.g., tone, complexity, vocabulary, sentence structure) and incorporate those stylistic qualities into the SFL fields and the final promptText. For example, update the 'desiredTone', 'aiPersona', and 'textualDirectives' to match the source. The generated 'promptText' should be a complete, standalone prompt that implicitly carries the desired style.
     The output MUST be a single, valid JSON object. Do not include any text, notes, or explanations outside of the JSON object.
+    All string values in the JSON, especially for multi-line fields like "promptText", must be properly formatted with escaped newlines (e.g., using \\n).
     The JSON object should have the following structure: { "title": string, "promptText": string, "sflField": { "topic": string, "taskType": string, "domainSpecifics": string, "keywords": string }, "sflTenor": { "aiPersona": string, "targetAudience": string[], "desiredTone": string, "interpersonalStance": string }, "sflMode": { "outputFormat": string, "rhetoricalStructure": string, "lengthConstraint": string, "textualDirectives": string }, "exampleOutput": string, "notes": string }.
     
     - title: Create a concise, descriptive title based on the user's goal.
@@ -187,6 +189,7 @@ export const regenerateSFLFromSuggestion = async (
     The user will provide a JSON object representing the current prompt and a text string with their requested change.
     If a source document is provided (as part of the prompt object or separately), its style should be analyzed and take precedence, influencing the revision.
     You MUST return a single, valid JSON object that represents the *revised* prompt. Do not include any text, notes, or explanations outside of the JSON object.
+    All string values in the JSON, especially for multi-line fields like "promptText", must be properly formatted with escaped newlines (e.g., using \\n).
     The output JSON object must have the exact same structure as the input, containing all the original fields, but with values updated according to the suggestion and stylistic source.
     The structure is: { "title": string, "promptText": string, "sflField": { "topic": string, "taskType": string, "domainSpecifics": string, "keywords": string }, "sflTenor": { "aiPersona": string, "targetAudience": string[], "desiredTone": string, "interpersonalStance": string }, "sflMode": { "outputFormat": string, "rhetoricalStructure": string, "lengthConstraint": string, "textualDirectives": string }, "exampleOutput": string, "notes": string, "sourceDocument"?: { "name": string, "content": string } }.
     

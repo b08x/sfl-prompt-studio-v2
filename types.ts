@@ -20,6 +20,21 @@ export interface SFLMode {
   textualDirectives: string;
 }
 
+export interface PromptVersion {
+  version: number;
+  promptText: string;
+  sflField: SFLField;
+  sflTenor: SFLTenor;
+  sflMode: SFLMode;
+  exampleOutput?: string;
+  notes?: string;
+  sourceDocument?: {
+    name: string;
+    content: string;
+  };
+  createdAt: string; // The date this version was created
+}
+
 export interface PromptSFL {
   id: string;
   title: string;
@@ -29,8 +44,8 @@ export interface PromptSFL {
   sflMode: SFLMode;
   exampleOutput?: string;
   notes?: string;
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
+  createdAt: string; // ISO string for the very first version
+  updatedAt: string; // ISO string for the latest update
   geminiResponse?: string;
   geminiTestError?: string;
   isTesting?: boolean;
@@ -38,7 +53,11 @@ export interface PromptSFL {
     name: string;
     content: string;
   };
+  // Add versioning fields
+  version: number;
+  history: PromptVersion[];
 }
+
 
 export interface Filters {
   searchTerm: string;

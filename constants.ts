@@ -57,6 +57,8 @@ export const INITIAL_PROMPT_SFL: Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt
   exampleOutput: "",
   notes: "",
   sourceDocument: undefined,
+  version: 1,
+  history: [],
 };
 
 // --- PROMPT LAB CONSTANTS ---

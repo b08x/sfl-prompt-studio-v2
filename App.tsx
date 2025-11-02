@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { PromptSFL, Filters, ModalType, Workflow, Task, DataStore, StagedUserInput } from './types';
+import { PromptSFL, Filters, ModalType, Workflow, Task, DataStore, StagedUserInput, PromptVersion } from './types';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import Stats from './components/Stats';
@@ -38,7 +38,9 @@ const samplePrompts: PromptSFL[] = [
     sflMode: { outputFormat: "Markdown", rhetoricalStructure: "Code block followed by bullet points", lengthConstraint: "Medium Paragraph (~150 words)", textualDirectives: "Use simple language" },
     createdAt: "2023-05-15T12:00:00Z",
     updatedAt: "2023-05-15T12:00:00Z",
-    geminiResponse: "This is a test response."
+    geminiResponse: "This is a test response.",
+    version: 1,
+    history: [],
   },
   {
     id: "2",
@@ -49,7 +51,9 @@ const samplePrompts: PromptSFL[] = [
     sflMode: { outputFormat: "Bullet-Points", rhetoricalStructure: "Sections for endpoints, authentication, etc.", lengthConstraint: "Detailed (as needed)", textualDirectives: "Focus on practical usage" },
     createdAt: "2023-05-10T12:00:00Z",
     updatedAt: "2023-05-10T12:00:00Z",
-    geminiResponse: "This is a test response."
+    geminiResponse: "This is a test response.",
+    version: 1,
+    history: [],
   },
   {
     id: "3",
@@ -60,6 +64,8 @@ const samplePrompts: PromptSFL[] = [
     sflMode: { outputFormat: "Json", rhetoricalStructure: "JSON object", lengthConstraint: "Concise (as needed)", textualDirectives: "Adhere to the specified output schema" },
     createdAt: "2023-05-18T12:00:00Z",
     updatedAt: "2023-05-18T12:00:00Z",
+    version: 1,
+    history: [],
   },
     {
     id: "4",
@@ -70,7 +76,9 @@ const samplePrompts: PromptSFL[] = [
     sflMode: { outputFormat: "Paragraph", rhetoricalStructure: "Analogy followed by explanation", lengthConstraint: "Medium Paragraph (~150 words)", textualDirectives: "Avoid technical jargon" },
     createdAt: "2023-05-12T12:00:00Z",
     updatedAt: "2023-05-12T12:00:00Z",
-    geminiResponse: "This is a test response."
+    geminiResponse: "This is a test response.",
+    version: 1,
+    history: [],
   },
   {
     id: "5",
@@ -81,6 +89,8 @@ const samplePrompts: PromptSFL[] = [
     sflMode: { outputFormat: "Code", rhetoricalStructure: "Explanation of bug then corrected code", lengthConstraint: "Concise (as needed)", textualDirectives: "Provide clear fix descriptions" },
     createdAt: "2023-05-20T12:00:00Z",
     updatedAt: "2023-05-20T12:00:00Z",
+    version: 1,
+    history: [],
   },
   {
     id: "6",
@@ -91,7 +101,9 @@ const samplePrompts: PromptSFL[] = [
     sflMode: { outputFormat: "Paragraph", rhetoricalStructure: "Maintain original structure", lengthConstraint: "As per original", textualDirectives: "Use formal Spanish" },
     createdAt: "2023-05-17T12:00:00Z",
     updatedAt: "2023-05-17T12:00:00Z",
-    geminiResponse: "This is a test response."
+    geminiResponse: "This is a test response.",
+    version: 1,
+    history: [],
   },
 ];
 
@@ -204,7 +216,44 @@ const App: React.FC = () => {
       }
       return [prompt, ...prevPrompts].sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     });
-    handleCloseModal();
+  };
+
+  const handleRevertPrompt = (prompt: PromptSFL, versionToRevertTo: PromptVersion) => {
+    // 1. Create a version of the *current* state before reverting
+    const previousVersion: PromptVersion = {
+      version: prompt.version,
+      promptText: prompt.promptText,
+      sflField: prompt.sflField,
+      sflTenor: prompt.sflTenor,
+      sflMode: prompt.sflMode,
+      exampleOutput: prompt.exampleOutput,
+      notes: prompt.notes,
+      sourceDocument: prompt.sourceDocument,
+      createdAt: prompt.updatedAt,
+    };
+
+    // 2. Create the new state by overwriting current with old
+    const newPromptState: PromptSFL = {
+      ...prompt, // keep id, createdAt, etc.
+      // apply reverted data
+      promptText: versionToRevertTo.promptText,
+      sflField: versionToRevertTo.sflField,
+      sflTenor: versionToRevertTo.sflTenor,
+      sflMode: versionToRevertTo.sflMode,
+      exampleOutput: versionToRevertTo.exampleOutput,
+      notes: versionToRevertTo.notes,
+      sourceDocument: versionToRevertTo.sourceDocument,
+      // update metadata
+      updatedAt: new Date().toISOString(),
+      version: prompt.version + 1,
+      history: [...(prompt.history || []), previousVersion],
+      geminiResponse: undefined, // Clear test results on change
+      geminiTestError: undefined,
+    };
+    
+    // 3. Save the new state
+    handleSavePrompt(newPromptState);
+    alert(`Reverted to version ${versionToRevertTo.version}. A new version (${newPromptState.version}) has been created.`);
   };
 
   const handleDeletePrompt = (promptId: string) => {
@@ -570,7 +619,10 @@ const App: React.FC = () => {
         <PromptFormModal
           isOpen={true}
           onClose={handleCloseModal}
-          onSave={handleSavePrompt}
+          onSave={(prompt) => {
+            handleSavePrompt(prompt);
+            handleCloseModal();
+          }}
           promptToEdit={selectedPrompt}
           appConstants={appConstants}
           onAddConstant={handleAddConstant}
@@ -587,6 +639,7 @@ const App: React.FC = () => {
           onTestWithGemini={handleTestWithGemini}
           onExportPrompt={handleExportSinglePrompt}
           onExportPromptMarkdown={handleExportSinglePromptMarkdown}
+          onRevert={handleRevertPrompt}
         />
       )}
 
@@ -594,7 +647,10 @@ const App: React.FC = () => {
         <PromptWizardModal
           isOpen={true}
           onClose={handleCloseModal}
-          onSave={handleSavePrompt}
+          onSave={(prompt) => {
+            handleSavePrompt(prompt);
+            handleCloseModal();
+          }}
           appConstants={appConstants}
           onAddConstant={handleAddConstant}
         />
