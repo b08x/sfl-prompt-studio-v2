@@ -18,6 +18,8 @@ import { useWorkflowRunner } from './hooks/useWorkflowRunner';
 import WorkflowEditorModal from './components/lab/modals/WorkflowEditorModal';
 import WorkflowWizardModal from './components/lab/modals/WorkflowWizardModal';
 import { promptToMarkdown, sanitizeFilename } from './utils/exportUtils';
+import LiveAssistant from './components/LiveAssistant';
+import MicrophoneIcon from './components/icons/MicrophoneIcon';
 
 
 const initialFilters: Filters = {
@@ -108,6 +110,7 @@ const samplePrompts: PromptSFL[] = [
 ];
 
 type Page = 'dashboard' | 'lab' | 'documentation' | 'settings';
+type LabTab = 'workflow' | 'ideation';
 
 const App: React.FC = () => {
   // --- Client-Side Persistence for Prompts ---
@@ -128,12 +131,20 @@ const App: React.FC = () => {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
 
   // --- Lifted State for Prompt Lab ---
   const { workflows, saveWorkflow, deleteWorkflow, isLoading: workflowsLoading, saveCustomWorkflows } = useWorkflowManager();
   const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
   const activeWorkflow = useMemo(() => workflows.find(wf => wf.id === activeWorkflowId) || null, [workflows, activeWorkflowId]);
   const { dataStore, taskStates, isRunning, run, reset, runFeedback, stageInput } = useWorkflowRunner(activeWorkflow, prompts);
+  const [activeLabTab, setActiveLabTab] = useState<LabTab>('workflow');
+  const [ideationPromptId, setIdeationPromptId] = useState<string | null>(prompts.length > 0 ? prompts[0].id : null);
+  const ideationPrompt = useMemo(() => prompts.find(p => p.id === ideationPromptId) || null, [prompts, ideationPromptId]);
+
+  const handleIdeationPromptChange = useCallback((updatedPrompt: PromptSFL) => {
+    setPrompts(prev => prev.map(p => p.id === updatedPrompt.id ? updatedPrompt : p));
+  }, []);
 
   useEffect(() => {
     if (!workflowsLoading && workflows.length > 0 && !activeWorkflowId) {
@@ -570,6 +581,11 @@ const App: React.FC = () => {
               onStageInput={stageInput}
               dataStore={dataStore}
               saveWorkflow={saveWorkflow}
+              activeLabTab={activeLabTab}
+              onSetLabTab={setActiveLabTab}
+              ideationPrompt={ideationPrompt}
+              onIdeationPromptChange={handleIdeationPromptChange}
+              onSelectIdeationPrompt={setIdeationPromptId}
             />;
         case 'documentation':
             return <div className="flex-1 overflow-y-auto p-6"><Documentation /></div>;
@@ -680,6 +696,27 @@ const App: React.FC = () => {
             onSave={handleSaveWorkflow}
             prompts={prompts}
         />
+      )}
+
+      {/* Live Assistant Components */}
+      <LiveAssistant
+        isOpen={isAssistantOpen}
+        onClose={() => setIsAssistantOpen(false)}
+        activePage={activePage}
+        labTab={activePage === 'lab' ? activeLabTab : undefined}
+        activePrompt={ideationPrompt}
+        onUpdatePrompt={handleIdeationPromptChange}
+        activeWorkflow={activeWorkflow}
+      />
+      
+      {!isAssistantOpen && (
+          <button
+            onClick={() => setIsAssistantOpen(true)}
+            className="fixed bottom-5 right-5 w-14 h-14 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition-transform transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-900 z-40"
+            aria-label="Open live assistant"
+          >
+            <MicrophoneIcon className="w-8 h-8"/>
+          </button>
       )}
     </div>
   );

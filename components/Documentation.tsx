@@ -112,7 +112,7 @@ const Documentation: React.FC = () => {
 
                     <InteractiveModule icon={<FlaskIcon className="w-8 h-8"/>} title="The Lab: From Idea to Agent" subtitle="An integrated environment for real-time prompt refinement and multi-step workflow design.">
                         <FeatureDetail icon={<SparklesIcon className="w-5 h-5"/>} title="Ideation Studio">
-                             Use live voice conversation with an AI assistant to refine SFL parameters in real-time. The assistant updates your prompt as you speak.
+                             Use the Live Assistant for voice-driven refinement. Simply open the assistant and start speaking to change SFL parameters. The assistant understands your intent and updates the prompt in real-time.
                         </FeatureDetail>
                         <FeatureDetail icon={<WorkflowIcon className="w-5 h-5"/>} title="Workflow Canvas">
                              Visually design complex agents by adding and connecting tasks. Chain together data inputs, SFL prompts, and custom logic to build powerful automations.

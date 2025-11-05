@@ -31,6 +31,11 @@ interface PromptLabPageProps {
     onStageInput: (input: StagedUserInput) => void;
     dataStore: DataStore;
     saveWorkflow: (workflow: Workflow) => void;
+    activeLabTab: 'workflow' | 'ideation';
+    onSetLabTab: (tab: 'workflow' | 'ideation') => void;
+    ideationPrompt: PromptSFL | null;
+    onIdeationPromptChange: (prompt: PromptSFL) => void;
+    onSelectIdeationPrompt: (promptId: string | null) => void;
 }
 
 type LabTab = 'workflow' | 'ideation';
@@ -53,9 +58,13 @@ const PromptLabPage: React.FC<PromptLabPageProps> = ({
     onStageInput,
     dataStore,
     saveWorkflow,
+    activeLabTab,
+    onSetLabTab,
+    ideationPrompt,
+    onIdeationPromptChange,
+    onSelectIdeationPrompt
 }) => {
     const [modalState, setModalState] = useState<{type: 'detail' | 'none', taskId: string | null}>({type: 'none', taskId: null});
-    const [activeTab, setActiveTab] = useState<LabTab>('workflow');
 
     const handleTaskClick = (task: Task) => {
         setModalState({type: 'detail', taskId: task.id });
@@ -71,14 +80,14 @@ const PromptLabPage: React.FC<PromptLabPageProps> = ({
     const handleTestInWorkflow = (workflow: Workflow) => {
         saveWorkflow(workflow);
         onSelectWorkflow(workflow.id);
-        setActiveTab('workflow');
+        onSetLabTab('workflow');
     };
 
     const TabButton: React.FC<{ tabId: LabTab; icon: React.ReactNode; label: string }> = ({ tabId, icon, label }) => (
         <button
-            onClick={() => setActiveTab(tabId)}
+            onClick={() => onSetLabTab(tabId)}
             className={`flex items-center space-x-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
-                activeTab === tabId ? 'bg-blue-500/20 text-blue-300' : 'text-gray-400 hover:bg-gray-700'
+                activeLabTab === tabId ? 'bg-blue-500/20 text-blue-300' : 'text-gray-400 hover:bg-gray-700'
             }`}
         >
             {icon}
@@ -122,14 +131,14 @@ const PromptLabPage: React.FC<PromptLabPageProps> = ({
     const ideationHeader = (
         <div>
             <h2 className="text-xl font-bold text-gray-50">Prompt Ideation Studio</h2>
-            <p className="text-sm text-gray-400">Refine prompts in real-time with a conversational AI assistant.</p>
+            <p className="text-sm text-gray-400">Refine prompts in real-time with the Live AI Assistant.</p>
         </div>
     );
 
     return (
         <div className="flex flex-col h-full bg-gray-900">
             <header className="flex-shrink-0 bg-gray-800/80 backdrop-blur-lg border-b border-gray-700 px-6 py-4 flex items-center justify-between z-10">
-                {activeTab === 'workflow' ? workflowHeader : ideationHeader}
+                {activeLabTab === 'workflow' ? workflowHeader : ideationHeader}
             </header>
 
             <div className="flex-shrink-0 px-6 py-2 border-b border-gray-700 bg-gray-800">
@@ -140,7 +149,7 @@ const PromptLabPage: React.FC<PromptLabPageProps> = ({
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-                {activeTab === 'workflow' && (
+                {activeLabTab === 'workflow' && (
                     <>
                         {/* Main Canvas and Controls Area */}
                         <div className="flex-1 flex flex-col overflow-hidden">
@@ -186,10 +195,13 @@ const PromptLabPage: React.FC<PromptLabPageProps> = ({
                         </aside>
                     </>
                 )}
-                {activeTab === 'ideation' && (
+                {activeLabTab === 'ideation' && (
                     <PromptRefinementStudio 
                         prompts={prompts} 
                         onTestInWorkflow={handleTestInWorkflow}
+                        prompt={ideationPrompt}
+                        onPromptChange={onIdeationPromptChange}
+                        onSelectPrompt={onSelectIdeationPrompt}
                     />
                 )}
             </div>
