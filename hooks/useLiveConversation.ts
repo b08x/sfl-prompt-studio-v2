@@ -1,3 +1,4 @@
+
 import { useState, useRef, useCallback } from 'react';
 import { GoogleGenAI, Modality, LiveSession, FunctionDeclaration, Type, LiveServerMessage } from '@google/genai';
 import { encode, decode, decodeAudioData } from '../utils/audioUtils';
@@ -69,9 +70,6 @@ export const useLiveConversation = ({ systemInstruction, onUpdatePrompt }: UseLi
   const nextStartTimeRef = useRef<number>(0);
   const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   
-  const currentInputTranscription = useRef('');
-  const currentOutputTranscription = useRef('');
-
   const cleanup = useCallback(() => {
     if (scriptProcessorRef.current) {
         scriptProcessorRef.current.onaudioprocess = null;
@@ -95,8 +93,6 @@ export const useLiveConversation = ({ systemInstruction, onUpdatePrompt }: UseLi
     audioSourcesRef.current.forEach(source => source.stop());
     audioSourcesRef.current.clear();
     nextStartTimeRef.current = 0;
-    currentInputTranscription.current = '';
-    currentOutputTranscription.current = '';
   }, []);
 
 
@@ -113,11 +109,13 @@ export const useLiveConversation = ({ systemInstruction, onUpdatePrompt }: UseLi
     setStatus('connecting');
     setError(null);
     setTranscript([]);
-    currentInputTranscription.current = '';
-    currentOutputTranscription.current = '';
 
 
     try {
+        if (!process.env.API_KEY) {
+            throw new Error("Gemini API Key is not configured. Please ensure the API_KEY environment variable is set.");
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaStreamRef.current = stream;
 
@@ -170,7 +168,7 @@ export const useLiveConversation = ({ systemInstruction, onUpdatePrompt }: UseLi
                                 onUpdatePrompt(updates);
 
                                 const updatedSections = Object.keys(fc.args).join(', ');
-                                setTranscript(prev => [...prev, { speaker: 'system', text: `Updated ${updatedSections}` }]);
+                                setTranscript(prev => [...prev, { speaker: 'system', text: `Updated ${updatedSections}`, isFinal: true }]);
                                 
                                 functionResponses.push({
                                     id : fc.id,
@@ -187,26 +185,36 @@ export const useLiveConversation = ({ systemInstruction, onUpdatePrompt }: UseLi
                     }
 
                     if (message.serverContent?.inputTranscription) {
-                        currentInputTranscription.current += message.serverContent.inputTranscription.text;
+                        const textChunk = message.serverContent.inputTranscription.text;
+                        setTranscript(prev => {
+                            const last = prev[prev.length - 1];
+                            if (last?.speaker === 'user' && !last.isFinal) {
+                                const newLast = { ...last, text: last.text + textChunk };
+                                return [...prev.slice(0, -1), newLast];
+                            } else {
+                                const finalized = prev.map(e => (e.isFinal === false ? { ...e, isFinal: true } : e));
+                                return [...finalized, { speaker: 'user', text: textChunk, isFinal: false }];
+                            }
+                        });
                     }
                     if (message.serverContent?.outputTranscription) {
-                        currentOutputTranscription.current += message.serverContent.outputTranscription.text;
+                        const textChunk = message.serverContent.outputTranscription.text;
+                        setTranscript(prev => {
+                            const last = prev[prev.length - 1];
+                            if (last?.speaker === 'model' && !last.isFinal) {
+                                const newLast = { ...last, text: last.text + textChunk };
+                                return [...prev.slice(0, -1), newLast];
+                            } else {
+                                const finalized = prev.map(e => (e.isFinal === false ? { ...e, isFinal: true } : e));
+                                return [...finalized, { speaker: 'model', text: textChunk, isFinal: false }];
+                            }
+                        });
                     }
 
                     if (message.serverContent?.turnComplete) {
-                        const finalInput = currentInputTranscription.current;
-                        const finalOutput = currentOutputTranscription.current;
-                        
-                        setTranscript(prev => {
-                            const newEntries: TranscriptEntry[] = [];
-                            if (finalInput) newEntries.push({ speaker: 'user', text: finalInput });
-                            if (finalOutput) newEntries.push({ speaker: 'model', text: finalOutput });
-                            return [...prev, ...newEntries];
-                        });
-
-                        currentInputTranscription.current = '';
-                        currentOutputTranscription.current = '';
+                        setTranscript(prev => prev.map(e => (e.isFinal === false ? { ...e, isFinal: true } : e)));
                     }
+
 
                     const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
                     if (base64Audio) {

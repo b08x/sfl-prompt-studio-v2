@@ -58,6 +58,19 @@ export interface PromptSFL {
   history: PromptVersion[];
 }
 
+export interface SFLIssue {
+  severity: 'error' | 'warning' | 'info';
+  component: string;
+  message: string;
+  suggestion: string;
+}
+
+export interface SFLAnalysis {
+  score: number;
+  assessment: string;
+  issues: SFLIssue[];
+}
+
 
 export interface Filters {
   searchTerm: string;
@@ -155,4 +168,4 @@ export interface StagedUserInput {
     }
 }
 
-export type TranscriptEntry = { speaker: 'user' | 'model' | 'system'; text: string };
+export type TranscriptEntry = { speaker: 'user' | 'model' | 'system'; text: string; isFinal?: boolean };

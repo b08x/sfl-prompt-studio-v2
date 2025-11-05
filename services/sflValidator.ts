@@ -1,74 +1,101 @@
 
-import { PromptSFL } from '../types';
+import { GoogleGenAI, Type } from "@google/genai";
+import { PromptSFL, SFLAnalysis } from '../types';
 
-export type ValidationResult = {
-  type: 'warning' | 'error';
-  message: string;
+// Helper function to get a configured AI instance
+const getAiInstance = () => {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        throw new Error("Gemini API Key is not configured.");
+    }
+    return new GoogleGenAI({ apiKey });
 };
 
-export const validateSFL = (prompt: PromptSFL): ValidationResult[] => {
-  const issues: ValidationResult[] = [];
-  const { sflField, sflTenor, sflMode } = prompt;
+// Define the structured JSON schema for the AI's response
+const analysisSchema = {
+  type: Type.OBJECT,
+  properties: {
+    score: {
+      type: Type.INTEGER,
+      description: "A numerical score from 0 (poor) to 100 (excellent) representing the overall quality and coherence of the prompt's SFL components."
+    },
+    assessment: {
+      type: Type.STRING,
+      description: "A brief, one-sentence summary of the prompt's quality."
+    },
+    issues: {
+      type: Type.ARRAY,
+      description: "An array of identified issues or suggestions for improvement.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          severity: {
+            type: Type.STRING,
+            enum: ['error', 'warning', 'info'],
+            description: "The severity level of the issue."
+          },
+          component: {
+            type: Type.STRING,
+            description: "The SFL component(s) involved (e.g., 'Tenor/Mode Conflict', 'Field')."
+          },
+          message: {
+            type: Type.STRING,
+            description: "A clear, concise description of the issue."
+          },
+          suggestion: {
+            type: Type.STRING,
+            description: "An actionable suggestion to resolve the issue."
+          }
+        },
+        required: ['severity', 'component', 'message', 'suggestion']
+      }
+    }
+  },
+  required: ['score', 'assessment', 'issues']
+};
 
-  // Rule 1: Length vs. Tone
-  const shortLengths = ["Single Sentence", "Short Paragraph (~50 words)"];
-  const longLengths = ["Long Paragraph (~300 words)", "Multiple Paragraphs (~500+ words)"];
-  if (shortLengths.includes(sflMode.lengthConstraint) && sflTenor.desiredTone === "Detailed") {
-    issues.push({
-      type: 'warning',
-      message: `A "Detailed" tone may conflict with a short length constraint ("${sflMode.lengthConstraint}"). The AI might struggle to be detailed in such a small space.`
-    });
-  }
-  if (longLengths.includes(sflMode.lengthConstraint) && sflTenor.desiredTone === "Concise") {
-    issues.push({
-      type: 'warning',
-      message: `A "Concise" tone may conflict with a long length constraint ("${sflMode.lengthConstraint}"). The result might be less dense than expected.`
-    });
-  }
+export const analyzeSFLWithGemini = async (prompt: Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history'>): Promise<SFLAnalysis> => {
+    const ai = getAiInstance();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { geminiResponse, geminiTestError, isTesting, ...promptData } = prompt;
 
-  // Rule 2: Audience vs. Persona
-  const technicalPersonas = ["Expert", "Devil's Advocate", "Historian", "Philosopher"];
-  if (sflTenor.targetAudience.includes("Children (5-7 years)") && technicalPersonas.includes(sflTenor.aiPersona)) {
-    issues.push({
-      type: 'warning',
-      message: `The AI persona "${sflTenor.aiPersona}" may use complex language that is unsuitable for the target audience "Children (5-7 years)".`
-    });
-  }
+    const systemInstruction = `You are an expert in Systemic Functional Linguistics (SFL) and AI prompt engineering. Your task is to analyze a user's prompt, which is provided as a JSON object with Field, Tenor, and Mode components. Evaluate the prompt for clarity, coherence, and potential conflicts.
 
-  // Rule 3: Format vs. Task
-  const codeFormats = ["Python Code", "JavaScript Code", "JSON", "XML", "HTML"];
-  const creativeFormats = ["Poem", "Short Story"];
-  
-  if (sflField.taskType === "Code Generation" && creativeFormats.includes(sflMode.outputFormat)) {
-      issues.push({
-          type: 'warning',
-          message: `The task "Code Generation" is likely incompatible with a creative output format like "${sflMode.outputFormat}".`
-      });
-  }
-  
-  if (["Summarization", "Explanation", "Translation"].includes(sflField.taskType) && codeFormats.includes(sflMode.outputFormat)) {
-      issues.push({
-          type: 'warning',
-          message: `The task "${sflField.taskType}" may not produce a valid output in a strict data format like "${sflMode.outputFormat}" unless specifically instructed in the prompt text.`
-      });
-  }
+Your analysis must consider three grammatical aspects:
+1.  **Functional Grammar:** Assess clarity and meaning. Is the topic well-defined? Do the parts logically connect to achieve the task?
+2.  **Generative Grammar:** Check for structural soundness. Is the prompt unambiguous for an LLM? Could the syntax be misinterpreted?
+3.  **Pragmatic Grammar:** Evaluate contextual appropriateness. Does the specified persona (Tenor) conflict with the requested format (Mode)? Is the tone suitable for the audience?
 
-  // Rule 4: Structure vs. Length
-  const complexStructures = ['conclusion', 'points', 'sections', 'chapters', 'introduction'];
-  if (sflMode.lengthConstraint === "Single Sentence" && sflMode.rhetoricalStructure && complexStructures.some(keyword => sflMode.rhetoricalStructure.toLowerCase().includes(keyword))) {
-      issues.push({
-          type: 'warning',
-          message: `A complex rhetorical structure ("${sflMode.rhetoricalStructure}") is unlikely to fit within a "Single Sentence" length constraint.`
-      });
-  }
+Based on your expert analysis, you MUST return a single, valid JSON object that adheres to the provided schema. The JSON object is your only output.`;
 
-  // Rule 5: Directives vs. Audience
-  if (sflTenor.targetAudience.includes("Experts") && sflMode.textualDirectives && sflMode.textualDirectives.toLowerCase().includes("avoid jargon")) {
-      issues.push({
-          type: 'warning',
-          message: `The directive "Avoid jargon" might be counterproductive when targeting an "Expert" audience who may expect technical terms.`
-      });
-  }
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-pro',
+            contents: `Analyze the following SFL prompt components:\n\n${JSON.stringify(promptData, null, 2)}`,
+            config: {
+                systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: analysisSchema,
+            },
+        });
 
-  return issues;
+        const text = response.text.trim();
+        // The API should return valid JSON when a schema is provided, but we parse defensively.
+        const analysisResult = JSON.parse(text) as SFLAnalysis;
+        return analysisResult;
+
+    } catch (error) {
+        console.error("Error analyzing SFL with Gemini:", error);
+        // Return a default error structure that can be displayed in the UI
+        return {
+            score: 0,
+            assessment: "Failed to analyze prompt.",
+            issues: [{
+                severity: 'error',
+                component: 'Analysis Service',
+                message: 'The AI analysis service failed to process the request.',
+                suggestion: 'This might be a temporary issue with the API. Please try again in a moment.'
+            }]
+        };
+    }
 };

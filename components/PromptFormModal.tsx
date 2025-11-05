@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { PromptSFL, SFLField, SFLTenor, SFLMode, PromptVersion } from '../types';
+import { PromptSFL, SFLField, SFLTenor, SFLMode, PromptVersion, SFLAnalysis } from '../types';
 import { TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS, INITIAL_PROMPT_SFL } from '../constants';
 import ModalShell from './ModalShell';
 import { regenerateSFLFromSuggestion } from '../services/geminiService';
-import { validateSFL, ValidationResult } from '../services/sflValidator';
+import { analyzeSFLWithGemini } from '../services/sflValidator';
 import SparklesIcon from './icons/SparklesIcon';
 import PaperClipIcon from './icons/PaperClipIcon';
 import XCircleIcon from './icons/XCircleIcon';
@@ -30,8 +30,10 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
   const [formData, setFormData] = useState<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history'>>(INITIAL_PROMPT_SFL);
   const [newOptionValues, setNewOptionValues] = useState<Record<string, string>>({});
   const [regenState, setRegenState] = useState({ shown: false, suggestion: '', loading: false });
-  const [validationIssues, setValidationIssues] = useState<ValidationResult[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [sflAnalysis, setSflAnalysis] = useState<SFLAnalysis | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const analysisTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (promptToEdit) {
@@ -42,19 +44,52 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
       setFormData(INITIAL_PROMPT_SFL);
     }
      setRegenState({ shown: false, suggestion: '', loading: false });
+     setSflAnalysis(null); // Reset analysis on open
   }, [promptToEdit, isOpen]);
   
+  // Debounced AI-powered SFL analysis
   useEffect(() => {
-    const tempPromptForValidation: PromptSFL = {
-      ...INITIAL_PROMPT_SFL,
-      ...formData,
-      id: promptToEdit?.id || '',
-      createdAt: promptToEdit?.createdAt || '',
-      updatedAt: promptToEdit?.updatedAt || '',
+    if (analysisTimeoutRef.current) {
+        clearTimeout(analysisTimeoutRef.current);
+    }
+    
+    // Don't analyze the initial empty prompt on create
+    if (!formData.title && !formData.promptText) {
+        setSflAnalysis(null);
+        setIsAnalyzing(false);
+        return;
+    }
+
+    setIsAnalyzing(true);
+    
+    analysisTimeoutRef.current = window.setTimeout(async () => {
+        try {
+            const promptForAnalysis = { ...INITIAL_PROMPT_SFL, ...formData };
+            const analysis = await analyzeSFLWithGemini(promptForAnalysis);
+            setSflAnalysis(analysis);
+        } catch (error) {
+            console.error("Analysis failed", error);
+            setSflAnalysis({
+                score: 0,
+                assessment: "Failed to analyze.",
+                issues: [{
+                    severity: 'error',
+                    component: 'System',
+                    message: 'Could not connect to the analysis service.',
+                    suggestion: 'Check your connection or try again later.'
+                }]
+            });
+        } finally {
+            setIsAnalyzing(false);
+        }
+    }, 1000); // 1-second debounce
+
+    return () => {
+        if (analysisTimeoutRef.current) {
+            clearTimeout(analysisTimeoutRef.current);
+        }
     };
-    const issues = validateSFL(tempPromptForValidation);
-    setValidationIssues(issues);
-  }, [formData, promptToEdit]);
+  }, [formData]);
 
 
   const handleChange = <T extends keyof Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'sflField' | 'sflTenor' | 'sflMode' | 'geminiResponse' | 'geminiTestError' | 'isTesting' | 'version' | 'history'>>(
@@ -284,6 +319,12 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
     </div>
   );
   
+  const getScoreColor = (score: number) => {
+    if (score < 50) return 'text-red-400';
+    if (score < 80) return 'text-amber-400';
+    return 'text-teal-400';
+  };
+
   return (
     <ModalShell isOpen={isOpen} onClose={onClose} title={promptToEdit ? `Edit Prompt (Version ${promptToEdit.version + 1})` : "Create New Prompt"} size="3xl">
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -411,17 +452,33 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
 
         {renderTextField('Notes (Optional)', 'notes', 'Your private notes about this prompt', true)}
 
-        {validationIssues.length > 0 && (
-          <div className="mt-6 p-4 border border-amber-500/50 bg-amber-500/10 rounded-lg space-y-3">
-            <div className="flex items-center">
-                <InformationCircleIcon className="w-5 h-5 text-amber-300 mr-2 shrink-0"/>
-                <h4 className="font-semibold text-amber-300">Potential Conflicts Detected</h4>
+        {(isAnalyzing || sflAnalysis) && (
+          <div className="mt-6 p-4 border border-gray-700 bg-gray-900/50 rounded-lg space-y-4">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                    <InformationCircleIcon className="w-5 h-5 text-blue-400"/>
+                    <h4 className="font-semibold text-blue-300">Prompt Analysis</h4>
+                </div>
+                <div className="flex items-center space-x-2">
+                    {isAnalyzing && <div className="w-4 h-4 border-2 border-t-transparent border-gray-400 rounded-full animate-spin"></div>}
+                    {sflAnalysis && <span className={`text-lg font-bold ${getScoreColor(sflAnalysis.score)}`}>{sflAnalysis.score} / 100</span>}
+                </div>
             </div>
-            <ul className="list-disc list-inside text-sm text-amber-300/90 space-y-1 pl-2">
-              {validationIssues.map((issue, index) => (
-                <li key={index}>{issue.message}</li>
-              ))}
-            </ul>
+            {sflAnalysis && <p className="text-sm italic text-gray-400">"{sflAnalysis.assessment}"</p>}
+            
+            {sflAnalysis && sflAnalysis.issues.length > 0 && (
+                <div className="space-y-3 pt-3 border-t border-gray-700">
+                    {sflAnalysis.issues.map((issue, index) => (
+                        <div key={index} className="text-sm p-3 rounded-md bg-gray-800 border border-gray-600">
+                            <p className={`font-semibold ${issue.severity === 'error' ? 'text-red-400' : issue.severity === 'warning' ? 'text-amber-400' : 'text-sky-400'}`}>
+                                {issue.severity.toUpperCase()}: {issue.component}
+                            </p>
+                            <p className="text-gray-300 mt-1">{issue.message}</p>
+                            <p className="text-gray-400 mt-2 text-xs"><span className="font-semibold">Suggestion:</span> {issue.suggestion}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
           </div>
         )}
 

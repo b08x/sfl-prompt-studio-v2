@@ -2,15 +2,14 @@
 import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
 import { PromptSFL, Workflow } from '../types';
 
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
-  // This will not show in UI in production, but good for local dev if key is missing.
-  // The app should ideally handle this more gracefully or assume key is always present.
-  console.error("Gemini API Key is missing. Please set the process.env.API_KEY environment variable.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY || "MISSING_API_KEY" }); // Fallback to prevent crash, though API calls will fail.
+// Helper function to get a configured AI instance, ensuring API key exists.
+const getAiInstance = () => {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        throw new Error("Gemini API Key is not configured. Please ensure the API_KEY environment variable is set.");
+    }
+    return new GoogleGenAI({ apiKey });
+};
 
 const parseJsonFromText = (text: string) => {
   let jsonStr = text.trim();
@@ -101,9 +100,7 @@ const parseJsonFromText = (text: string) => {
 
 
 export const testPromptWithGemini = async (promptText: string): Promise<string> => {
-  if (!API_KEY) {
-    throw new Error("Gemini API Key is not configured.");
-  }
+  const ai = getAiInstance();
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -122,9 +119,7 @@ export const testPromptWithGemini = async (promptText: string): Promise<string> 
 };
 
 export const generateSFLFromGoal = async (goal: string, sourceDocContent?: string): Promise<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>> => {
-    if (!API_KEY) {
-        throw new Error("Gemini API Key is not configured.");
-    }
+    const ai = getAiInstance();
     
     const systemInstruction = `You are an expert in Systemic Functional Linguistics (SFL) and AI prompt engineering. Your task is to analyze a user's goal and structure it into a detailed SFL-based prompt.
     If a source document is provided for stylistic reference, you MUST analyze its style (e.g., tone, complexity, vocabulary, sentence structure) and incorporate those stylistic qualities into the SFL fields and the final promptText. For example, update the 'desiredTone', 'aiPersona', and 'textualDirectives' to match the source. The generated 'promptText' should be a complete, standalone prompt that implicitly carries the desired style.
@@ -181,9 +176,7 @@ export const regenerateSFLFromSuggestion = async (
     currentPrompt: Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'geminiResponse' | 'geminiTestError' | 'isTesting'>,
     suggestion: string
 ): Promise<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>> => {
-    if (!API_KEY) {
-        throw new Error("Gemini API Key is not configured.");
-    }
+    const ai = getAiInstance();
     
     const systemInstruction = `You are an expert in Systemic Functional Linguistics (SFL) and AI prompt engineering. Your task is to revise an existing SFL prompt based on a user's suggestion.
     The user will provide a JSON object representing the current prompt and a text string with their requested change.
@@ -253,9 +246,7 @@ export const regenerateSFLFromSuggestion = async (
 };
 
 export const generateWorkflowFromGoal = async (goal: string): Promise<Workflow> => {
-    if (!API_KEY) {
-        throw new Error("Gemini API Key is not configured.");
-    }
+    const ai = getAiInstance();
 
     const systemInstruction = `You are an expert AI workflow orchestrator. Your task is to analyze a user's goal and generate a complete, multi-task workflow as a valid JSON object.
     

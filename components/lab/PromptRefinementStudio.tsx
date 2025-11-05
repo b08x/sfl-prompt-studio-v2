@@ -1,6 +1,8 @@
-import React, { useState, useCallback, useEffect } from 'react';
+
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { PromptSFL, SFLField, SFLTenor, SFLMode, TranscriptEntry, Workflow, TaskType, Task } from '../../types';
 import { useLiveConversation } from '../../hooks/useLiveConversation';
+import { regenerateSFLFromSuggestion } from '../../services/geminiService';
 import MicrophoneIcon from '../icons/MicrophoneIcon';
 import StopIcon from '../icons/StopIcon';
 import UserCircleIcon from '../icons/UserCircleIcon';
@@ -8,6 +10,7 @@ import SparklesIcon from '../icons/SparklesIcon';
 import BeakerIcon from '../icons/BeakerIcon';
 import WorkflowIcon from '../icons/WorkflowIcon';
 import ArrowDownTrayIcon from '../icons/ArrowDownTrayIcon';
+import ArrowPathIcon from '../icons/ArrowPathIcon';
 import TestResponseModal from './TestResponseModal';
 import { promptToMarkdown, sanitizeFilename } from '../../utils/exportUtils';
 
@@ -63,11 +66,15 @@ const TranscriptViewer: React.FC<{ transcript: TranscriptEntry[] }> = ({ transcr
             }
             const isUser = entry.speaker === 'user';
             const Icon = isUser ? UserCircleIcon : SparklesIcon;
+            const isFinal = entry.isFinal !== false; // Default to true if undefined or true
+
             return (
                 <div key={index} className={`flex items-start gap-3 ${isUser ? '' : 'flex-row-reverse'}`}>
                     <Icon className={`w-6 h-6 shrink-0 mt-1 ${isUser ? 'text-gray-400' : 'text-teal-400'}`} />
                     <div className={`p-3 rounded-lg max-w-sm ${isUser ? 'bg-gray-700' : 'bg-teal-900/50'}`}>
-                        <p className="text-sm text-gray-200">{entry.text}</p>
+                        <p className={`text-sm text-gray-200 transition-opacity duration-300 ${isFinal ? 'opacity-100' : 'opacity-60'}`}>
+                            {entry.text}
+                        </p>
                     </div>
                 </div>
             );
@@ -85,34 +92,71 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ prompts
     const [selectedPromptId, setSelectedPromptId] = useState<string>(prompts[0]?.id || '');
     const [editablePrompt, setEditablePrompt] = useState<PromptSFL | null>(prompts.find(p => p.id === selectedPromptId) || null);
     const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+    const [isRegeneratingText, setIsRegeneratingText] = useState(false);
 
     useEffect(() => {
         setEditablePrompt(prompts.find(p => p.id === selectedPromptId) || null);
     }, [selectedPromptId, prompts]);
 
-    const handlePromptUpdate = useCallback((updates: {
+    // This function is called by the live conversation hook. It ONLY updates the local SFL state.
+    // It is synchronous and makes no network calls to avoid conflicts with the live audio stream.
+    const handlePromptUpdateFromConversation = useCallback((updates: {
         sflField?: Partial<SFLField>;
         sflTenor?: Partial<SFLTenor>;
         sflMode?: Partial<SFLMode>;
     }) => {
         setEditablePrompt(prev => {
             if (!prev) return null;
-            // Deep merge for nested SFL objects
             return {
                 ...prev,
                 sflField: { ...prev.sflField, ...(updates.sflField || {}) },
                 sflTenor: { ...prev.sflTenor, ...(updates.sflTenor || {}) },
                 sflMode: { ...prev.sflMode, ...(updates.sflMode || {}) },
-                updatedAt: new Date().toISOString(),
             };
         });
     }, []);
 
-    const systemInstruction = "You are an AI assistant helping a user refine an SFL prompt. When the user asks to make a change (e.g., 'change the tone to be more formal'), use the `updatePromptComponents` tool to modify the prompt. You can ask clarifying questions if needed. Be concise and helpful.";
+    // This function is called by the user clicking the "Update from SFL" button.
+    // It performs the async network call to regenerate the prompt text.
+    const regenerateTextFromSFL = useCallback(async () => {
+        if (!editablePrompt) return;
+        setIsRegeneratingText(true);
+        try {
+            const suggestion = "The SFL metadata has been updated. Regenerate the `promptText`, `title`, and `exampleOutput` to be fully consistent with the new SFL data. Preserve the core goal but ensure the text reflects all SFL parameters accurately.";
+            const fullyRegeneratedData = await regenerateSFLFromSuggestion(editablePrompt, suggestion);
+            setEditablePrompt(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    ...fullyRegeneratedData,
+                    sourceDocument: prev.sourceDocument, // Preserve this
+                    updatedAt: new Date().toISOString(),
+                };
+            });
+        } catch (error) {
+            console.error("Failed to regenerate prompt:", error);
+            alert("Failed to update prompt text from SFL changes.");
+        } finally {
+            setIsRegeneratingText(false);
+        }
+    }, [editablePrompt]);
+
+    const systemInstruction = useMemo(() => {
+        const baseInstruction = "You are an AI assistant helping a user refine an SFL prompt. When the user asks to make a change (e.g., 'change the tone to be more formal'), use the `updatePromptComponents` tool to modify the prompt. You can ask clarifying questions if needed. Be concise and helpful.";
+        
+        if (!editablePrompt) {
+            return baseInstruction;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id, createdAt, updatedAt, version, history, geminiResponse, geminiTestError, isTesting, ...promptForContext } = editablePrompt;
+
+        return `${baseInstruction}\n\nHere is the current prompt you are refining:\n\n${JSON.stringify(promptForContext, null, 2)}`;
+    }, [editablePrompt]);
 
     const { status, transcript, error, startConversation, endConversation } = useLiveConversation({
         systemInstruction,
-        onUpdatePrompt: handlePromptUpdate,
+        onUpdatePrompt: handlePromptUpdateFromConversation,
     });
     
     const isConversing = status === 'active' || status === 'connecting';
@@ -141,11 +185,8 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ prompts
 
         const variables = editablePrompt.promptText.match(/{{\s*(\w+)\s*}}/g)
             ?.map(v => v.replace(/{{\s*|\s*}}/g, '')) || [];
-        // FIX: Explicitly providing the generic type to `new Set` ensures that TypeScript
-        // correctly infers the resulting array as `string[]` instead of `unknown[]`.
         const uniqueVars: string[] = [...new Set<string>(variables)];
 
-        // For simplicity, we create one input task that feeds the first variable found.
         const mainInputVar = uniqueVars.length > 0 ? uniqueVars[0] : 'mainInput';
         const requiresInput = uniqueVars.length > 0;
         
@@ -182,11 +223,9 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ prompts
         onTestInWorkflow(workflow);
     };
 
-
     return (
       <>
         <div className="grid grid-cols-1 lg:grid-cols-2 h-full overflow-hidden">
-            {/* Left Pane: SFL Prompt Details */}
             <div className="flex flex-col h-full border-r border-gray-700 bg-gray-800/50">
                 <div className="p-4 border-b border-gray-700 flex-shrink-0">
                     <label htmlFor="prompt-select" className="block text-sm font-medium text-gray-400 mb-1">Select Prompt to Refine</label>
@@ -201,32 +240,61 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ prompts
                     </select>
                 </div>
                 <div className="p-4 overflow-y-auto flex-grow">
-                    {editablePrompt ? <SFLViewer prompt={editablePrompt} /> : <p className="text-gray-400">Select a prompt to begin.</p>}
+                    {editablePrompt ? (
+                        <div className="space-y-6">
+                            <SFLViewer prompt={editablePrompt} />
+                            
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-lg font-medium text-gray-200">Prompt Text</h3>
+                                    <button 
+                                        onClick={regenerateTextFromSFL}
+                                        disabled={isRegeneratingText || isConversing}
+                                        className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
+                                        title="Regenerate prompt text from SFL metadata"
+                                    >
+                                        <ArrowPathIcon className={`w-4 h-4 ${isRegeneratingText ? 'animate-spin' : ''}`} />
+                                        <span>Update from SFL</span>
+                                    </button>
+                                </div>
+                                <div className="relative">
+                                    {isRegeneratingText && (
+                                        <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center rounded-md z-10">
+                                            <div className="spinner"></div>
+                                        </div>
+                                    )}
+                                    <pre className="bg-gray-900 p-3 rounded-md text-sm text-gray-200 whitespace-pre-wrap break-all border border-gray-700 min-h-[120px]">
+                                        {editablePrompt.promptText}
+                                    </pre>
+                                </div>
+                            </div>
+                        </div>
+                    ) : <p className="text-gray-400">Select a prompt to begin.</p>}
                 </div>
                  <div className="flex-shrink-0 p-3 border-t border-gray-700 bg-gray-900/50 flex items-center justify-end space-x-3">
                     <button
                         onClick={() => setIsTestModalOpen(true)}
-                        disabled={!editablePrompt}
+                        disabled={!editablePrompt || isConversing}
                         className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
-                        title="Test prompt response"
+                        title={isConversing ? "End conversation to test response" : "Test prompt response"}
                     >
                         <BeakerIcon className="w-4 h-4" />
                         <span>Test Response</span>
                     </button>
                     <button
                          onClick={handleTestInWorkflow}
-                         disabled={!editablePrompt}
+                         disabled={!editablePrompt || isConversing}
                         className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
-                        title="Test prompt in a workflow"
+                        title={isConversing ? "End conversation to test in workflow" : "Test prompt in a workflow"}
                     >
                         <WorkflowIcon className="w-4 h-4" />
                         <span>Test in Workflow</span>
                     </button>
                     <button
                         onClick={handleExportMarkdown}
-                        disabled={!editablePrompt}
+                        disabled={!editablePrompt || isConversing}
                         className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
-                        title="Export as Markdown"
+                        title={isConversing ? "End conversation to export" : "Export as Markdown"}
                     >
                         <ArrowDownTrayIcon className="w-4 h-4" />
                         <span>Export MD</span>
@@ -234,7 +302,6 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ prompts
                 </div>
             </div>
 
-            {/* Right Pane: Conversation & Transcript */}
             <div className="flex flex-col h-full bg-gray-800">
                 <div className="flex-grow p-4 overflow-y-auto">
                     {transcript.length > 0 ? (

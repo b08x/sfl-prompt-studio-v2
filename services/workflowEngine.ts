@@ -1,8 +1,14 @@
+
 import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
 import { Task, DataStore, AgentConfig, PromptSFL } from '../types';
 
-const API_KEY = process.env.API_KEY;
-const ai = new GoogleGenAI({ apiKey: API_KEY || "MISSING_API_KEY" });
+const getAiInstance = () => {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        throw new Error("Gemini API Key is not configured. Please ensure the API_KEY environment variable is set.");
+    }
+    return new GoogleGenAI({ apiKey });
+};
 
 // Helper to safely get nested properties from an object
 const getNested = (obj: Record<string, any>, path: string): any => {
@@ -36,6 +42,7 @@ export const templateString = (template: string, dataStore: DataStore): any => {
 
 
 const executeGeminiPrompt = async (prompt: string, agentConfig?: AgentConfig) => {
+    const ai = getAiInstance();
     const model = agentConfig?.model || 'gemini-2.5-flash';
     const response = await ai.models.generateContent({
         model: model,
@@ -51,6 +58,7 @@ const executeGeminiPrompt = async (prompt: string, agentConfig?: AgentConfig) =>
 };
 
 const executeImageAnalysis = async (prompt: string, imagePart: Part, agentConfig?: AgentConfig) => {
+    const ai = getAiInstance();
     const model = agentConfig?.model || 'gemini-2.5-flash';
     const textPart = { text: prompt };
 
@@ -67,6 +75,7 @@ const executeImageAnalysis = async (prompt: string, imagePart: Part, agentConfig
 };
 
 const executeGroundedGeneration = async (prompt: string, agentConfig?: AgentConfig) => {
+    const ai = getAiInstance();
     const model = agentConfig?.model || 'gemini-2.5-flash';
     const response = await ai.models.generateContent({
         model,
