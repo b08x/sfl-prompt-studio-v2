@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { PromptSFL } from '../types';
 import EllipsisVerticalIcon from './icons/EllipsisVerticalIcon';
@@ -84,8 +85,9 @@ const PromptCard: React.FC<PromptCardProps> = ({ prompt, onView, onEdit, onDelet
                 <div className={`p-2 rounded-md ${iconColor}`}>
                     {getTaskIcon(prompt.sflField.taskType)}
                 </div>
-                <h3 className="text-md font-semibold text-gray-50" title={prompt.title}>
+                <h3 className="text-md font-semibold text-gray-50 flex items-center gap-2" title={prompt.title}>
                     {prompt.title}
+                    <span className="text-xs font-normal text-gray-400 border border-gray-600 px-1.5 py-0.5 rounded" title={`Current Version: ${prompt.version}`}>v{prompt.version}</span>
                 </h3>
             </div>
             <div className="relative" ref={menuRef}>
