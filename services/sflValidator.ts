@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { PromptSFL, SFLAnalysis } from '../types';
+import { parseJsonFromText } from './geminiService';
 
 // Helper function to get a configured AI instance
 const getAiInstance = () => {
@@ -79,9 +80,9 @@ Based on your expert analysis, you MUST return a single, valid JSON object that 
             },
         });
 
-        const text = response.text.trim();
-        // The API should return valid JSON when a schema is provided, but we parse defensively.
-        const analysisResult = JSON.parse(text) as SFLAnalysis;
+        const text = response.text;
+        // Use the robust, centralized parser to handle potential model inconsistencies.
+        const analysisResult = parseJsonFromText(text) as SFLAnalysis;
         return analysisResult;
 
     } catch (error) {

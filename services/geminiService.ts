@@ -11,79 +11,48 @@ const getAiInstance = () => {
     return new GoogleGenAI({ apiKey });
 };
 
-const parseJsonFromText = (text: string) => {
+export const parseJsonFromText = (text: string) => {
   let jsonStr = text.trim();
   
   // This regex finds the first JSON code block anywhere in the text.
-  // FIX: Allow for various language identifiers like 'markdown' or others.
+  // It allows for optional language identifiers like 'json', 'javascript' etc.
   const fenceMatch = jsonStr.match(/```(?:\w+)?\s*([\s\S]*?)\s*```/s);
 
   if (fenceMatch && fenceMatch[1]) {
     jsonStr = fenceMatch[1].trim();
   } else {
-    // If no fences, find the first complete JSON object.
-    // This is more robust against extra text after the JSON.
+    // If no fences, find the first '{' or '[' and the last '}' or ']'
+    // to trim off any leading/trailing text from the model.
+    const firstBracket = jsonStr.indexOf('[');
     const firstBrace = jsonStr.indexOf('{');
-    if (firstBrace !== -1) {
-      let braceCount = 0;
-      let lastBrace = -1;
-      for (let i = firstBrace; i < jsonStr.length; i++) {
-        if (jsonStr[i] === '{') {
-          braceCount++;
-        } else if (jsonStr[i] === '}') {
-          braceCount--;
+    
+    let startIndex = -1;
+
+    if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
+      startIndex = firstBracket;
+    } else if (firstBrace !== -1) {
+      startIndex = firstBrace;
+    }
+    
+    if (startIndex > -1) {
+        const lastBracket = jsonStr.lastIndexOf(']');
+        const lastBrace = jsonStr.lastIndexOf('}');
+        const endIndex = jsonStr[startIndex] === '[' ? lastBracket : lastBrace;
+        
+        if (endIndex > startIndex) {
+            jsonStr = jsonStr.substring(startIndex, endIndex + 1);
+        } else {
+            jsonStr = jsonStr.substring(startIndex);
         }
-        if (braceCount === 0) {
-          lastBrace = i;
-          break;
-        }
-      }
-      if (lastBrace !== -1) {
-        jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
-      }
     }
   }
   
   // Attempt to fix common invalid JSON from LLMs. This is a defensive measure.
   // The primary fix should always be improving the prompt.
-  // Replace ": undefined" with ": null"
-  jsonStr = jsonStr.replace(/:(\s*)undefined\b/g, ':$1null');
-  // Remove trailing commas from objects and arrays
-  jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
-
-  // Sanitize newlines and other control characters inside strings.
-  // This is a fallback for cases where the LLM produces invalid JSON strings.
-  let sanitizedJsonStr = '';
-  let inString = false;
-  let isEscaped = false;
-  for (const char of jsonStr) {
-      if (inString) {
-          if (isEscaped) {
-              sanitizedJsonStr += char;
-              isEscaped = false;
-          } else if (char === '\\') {
-              sanitizedJsonStr += char;
-              isEscaped = true;
-          } else if (char === '"') {
-              sanitizedJsonStr += char;
-              inString = false;
-          } else if (char === '\n') {
-              sanitizedJsonStr += '\\n';
-          } else if (char === '\r') {
-              sanitizedJsonStr += '\\r';
-          } else if (char === '\t') {
-              sanitizedJsonStr += '\\t';
-          } else {
-              sanitizedJsonStr += char;
-          }
-      } else { // Not in a string
-          if (char === '"') {
-              inString = true;
-          }
-          sanitizedJsonStr += char;
-      }
-  }
-  jsonStr = sanitizedJsonStr;
+  jsonStr = jsonStr.replace(/\\\\n/g, '\\n'); // Fix over-escaped newlines
+  jsonStr = jsonStr.replace(/\\\\"/g, '\\"'); // Fix over-escaped quotes
+  jsonStr = jsonStr.replace(/:(\s*)undefined\b/g, ':$1null'); // Replace ": undefined" with ": null"
+  jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1'); // Remove trailing commas from objects and arrays
 
   try {
     const data = JSON.parse(jsonStr);
