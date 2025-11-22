@@ -9,6 +9,7 @@ import SparklesIcon from './icons/SparklesIcon';
 import PaperClipIcon from './icons/PaperClipIcon';
 import XCircleIcon from './icons/XCircleIcon';
 import InformationCircleIcon from './icons/InformationCircleIcon';
+import WrenchScrewdriverIcon from './icons/WrenchScrewdriverIcon';
 
 interface PromptFormModalProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sflAnalysis, setSflAnalysis] = useState<SFLAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isFixing, setIsFixing] = useState(false);
   const analysisTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -45,6 +47,7 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
     }
      setRegenState({ shown: false, suggestion: '', loading: false });
      setSflAnalysis(null); // Reset analysis on open
+     setIsFixing(false);
   }, [promptToEdit, isOpen]);
   
   // Debounced AI-powered SFL analysis
@@ -154,6 +157,34 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
       console.error(error);
       alert('Failed to regenerate prompt: ' + (error instanceof Error ? error.message : String(error)));
       setRegenState(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleAutoFix = async () => {
+    if (!sflAnalysis || sflAnalysis.issues.length === 0) return;
+    
+    setIsFixing(true);
+    try {
+        const issuesText = sflAnalysis.issues
+            .map(i => `- Issue in ${i.component} (${i.severity}): ${i.message}. Suggestion: ${i.suggestion}`)
+            .join('\n');
+            
+        const suggestion = `Auto-fix request based on SFL analysis issues:\n${issuesText}\n\nPlease implement these suggestions to improve the prompt's quality, ensuring consistency across Field, Tenor, and Mode.`;
+
+        const promptForRegeneration = {
+            ...formData,
+            version: promptToEdit?.version ?? 1,
+            history: promptToEdit?.history ?? [],
+        };
+        
+        const fixedData = await regenerateSFLFromSuggestion(promptForRegeneration, suggestion);
+        setFormData(fixedData);
+        // Re-analysis is triggered automatically by the useEffect watching formData
+    } catch (error) {
+        console.error("Auto-fix failed", error);
+        alert("Failed to apply auto-fixes. Please review the issues manually.");
+    } finally {
+        setIsFixing(false);
     }
   };
 
@@ -477,6 +508,24 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
                             <p className="text-gray-400 mt-2 text-xs"><span className="font-semibold">Suggestion:</span> {issue.suggestion}</p>
                         </div>
                     ))}
+                </div>
+            )}
+            
+            {sflAnalysis && sflAnalysis.issues.length > 0 && (
+                <div className="mt-4 flex justify-end">
+                    <button
+                        type="button"
+                        onClick={handleAutoFix}
+                        disabled={isFixing}
+                        className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white bg-teal-600 rounded-md hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    >
+                        {isFixing ? (
+                            <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+                        ) : (
+                            <WrenchScrewdriverIcon className="w-4 h-4" />
+                        )}
+                        <span>{isFixing ? 'Applying Fixes...' : 'Auto-Fix All Issues'}</span>
+                    </button>
                 </div>
             )}
           </div>
