@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { PromptSFL, SFLField, SFLTenor, SFLMode, PromptVersion, SFLAnalysis } from '../types';
 import { TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS, INITIAL_PROMPT_SFL } from '../constants';
@@ -28,7 +29,7 @@ interface PromptFormModalProps {
 }
 
 const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSave, promptToEdit, appConstants, onAddConstant }) => {
-  const [formData, setFormData] = useState<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history'>>(INITIAL_PROMPT_SFL);
+  const [formData, setFormData] = useState<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history' | 'sflAnalysis'>>(INITIAL_PROMPT_SFL);
   const [newOptionValues, setNewOptionValues] = useState<Record<string, string>>({});
   const [regenState, setRegenState] = useState({ shown: false, suggestion: '', loading: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -40,13 +41,14 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
   useEffect(() => {
     if (promptToEdit) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { id, createdAt, updatedAt, geminiResponse, geminiTestError, isTesting, version, history, ...editableData } = promptToEdit;
+      const { id, createdAt, updatedAt, geminiResponse, geminiTestError, isTesting, version, history, sflAnalysis: existingAnalysis, ...editableData } = promptToEdit;
       setFormData(editableData);
+      setSflAnalysis(existingAnalysis || null);
     } else {
       setFormData(INITIAL_PROMPT_SFL);
+      setSflAnalysis(null);
     }
      setRegenState({ shown: false, suggestion: '', loading: false });
-     setSflAnalysis(null); // Reset analysis on open
      setIsFixing(false);
   }, [promptToEdit, isOpen]);
   
@@ -95,9 +97,9 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
   }, [formData]);
 
 
-  const handleChange = <T extends keyof Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'sflField' | 'sflTenor' | 'sflMode' | 'geminiResponse' | 'geminiTestError' | 'isTesting' | 'version' | 'history'>>(
+  const handleChange = <T extends keyof Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'sflField' | 'sflTenor' | 'sflMode' | 'geminiResponse' | 'geminiTestError' | 'isTesting' | 'version' | 'history' | 'sflAnalysis'>>(
     field: T,
-    value: Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history'>[T]
+    value: Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history' | 'sflAnalysis'>[T]
   ) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -231,6 +233,7 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
         updatedAt: now,
         version: promptToEdit.version + 1,
         history: [...(promptToEdit.history || []), previousVersion],
+        sflAnalysis: sflAnalysis || undefined, // Save current analysis
       };
       onSave(finalPrompt);
     } else {
@@ -243,6 +246,7 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
         version: 1, // First version
         history: [], // No history yet
         isTesting: false,
+        sflAnalysis: sflAnalysis || undefined, // Save current analysis
       };
       onSave(finalPrompt);
     }
@@ -253,7 +257,7 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
   const commonInputClasses = "w-full px-3 py-2 bg-gray-900 border border-gray-700 text-gray-50 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors placeholder-gray-500";
   const labelClasses = "block text-sm font-medium text-gray-300 mb-1";
 
-  const renderTextField = (label: string, name: keyof Omit<PromptSFL, 'id'|'createdAt'|'updatedAt'|'sflField'|'sflTenor'|'sflMode' | 'geminiResponse' | 'geminiTestError' | 'isTesting' | 'version' | 'history'>, placeholder?: string, isTextArea = false) => (
+  const renderTextField = (label: string, name: keyof Omit<PromptSFL, 'id'|'createdAt'|'updatedAt'|'sflField'|'sflTenor'|'sflMode' | 'geminiResponse' | 'geminiTestError' | 'isTesting' | 'version' | 'history' | 'sflAnalysis'>, placeholder?: string, isTextArea = false) => (
     <div>
       <label htmlFor={name} className={labelClasses}>{label}</label>
       {isTextArea ? (

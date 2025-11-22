@@ -1,4 +1,5 @@
 
+
 export interface SFLField {
   topic: string;
   taskType: string;
@@ -35,6 +36,19 @@ export interface PromptVersion {
   createdAt: string; // The date this version was created
 }
 
+export interface SFLIssue {
+  severity: 'error' | 'warning' | 'info';
+  component: string;
+  message: string;
+  suggestion: string;
+}
+
+export interface SFLAnalysis {
+  score: number;
+  assessment: string;
+  issues: SFLIssue[];
+}
+
 export interface PromptSFL {
   id: string;
   title: string;
@@ -56,19 +70,8 @@ export interface PromptSFL {
   // Add versioning fields
   version: number;
   history: PromptVersion[];
-}
-
-export interface SFLIssue {
-  severity: 'error' | 'warning' | 'info';
-  component: string;
-  message: string;
-  suggestion: string;
-}
-
-export interface SFLAnalysis {
-  score: number;
-  assessment: string;
-  issues: SFLIssue[];
+  // SFL Analysis persistence
+  sflAnalysis?: SFLAnalysis;
 }
 
 

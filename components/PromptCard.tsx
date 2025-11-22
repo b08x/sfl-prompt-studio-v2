@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { PromptSFL } from '../types';
 import EllipsisVerticalIcon from './icons/EllipsisVerticalIcon';
@@ -76,6 +77,16 @@ const PromptCard: React.FC<PromptCardProps> = ({ prompt, onView, onEdit, onDelet
         setMenuOpen(false);
     }, 1500);
   };
+  
+  const getScoreColor = (score: number) => {
+    if (score < 50) return 'text-red-400';
+    if (score < 80) return 'text-amber-400';
+    return 'text-teal-400';
+  };
+
+  const analysis = prompt.sflAnalysis;
+  const errorCount = analysis?.issues.filter(i => i.severity === 'error').length || 0;
+  const warningCount = analysis?.issues.filter(i => i.severity === 'warning').length || 0;
 
   return (
     <div className="bg-gray-800 shadow-sm rounded-lg p-5 border border-gray-700 hover:shadow-lg hover:border-gray-600 transition-all duration-200 flex flex-col justify-between">
@@ -139,9 +150,19 @@ const PromptCard: React.FC<PromptCardProps> = ({ prompt, onView, onEdit, onDelet
             )
           ))}
         </div>
+        
+        {analysis && (
+            <div className="flex items-center gap-3 mb-3 pt-3 border-t border-gray-700/50">
+                <span className={`text-xs font-bold ${getScoreColor(analysis.score)}`}>
+                    Score: {analysis.score}
+                </span>
+                {errorCount > 0 && <span className="text-xs text-red-400 font-medium">{errorCount} Errors</span>}
+                {warningCount > 0 && <span className="text-xs text-amber-400 font-medium">{warningCount} Warnings</span>}
+            </div>
+        )}
       </div>
       
-      <div className="border-t border-gray-700 pt-4 flex justify-between items-center text-sm">
+      <div className={`border-t border-gray-700 ${analysis ? 'pt-2' : 'pt-4'} flex justify-between items-center text-sm`}>
         <p className="text-gray-400">Updated {new Date(prompt.updatedAt).toLocaleDateString()}</p>
         {isTested ? (
           <span className="px-2 py-1 text-xs font-semibold text-teal-300 bg-teal-400/20 rounded-md">Tested</span>
