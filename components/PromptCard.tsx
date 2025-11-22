@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
 import { PromptSFL } from '../types';
 import EllipsisVerticalIcon from './icons/EllipsisVerticalIcon';

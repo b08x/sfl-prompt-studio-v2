@@ -669,6 +669,7 @@ const App: React.FC = () => {
           }}
           appConstants={appConstants}
           onAddConstant={handleAddConstant}
+          prompts={prompts}
         />
       )}
 
