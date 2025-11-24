@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { PromptSFL, Workflow, TaskType, Task } from '../../types';
 import { regenerateSFLFromSuggestion } from '../../services/geminiService';
+import { TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS } from '../../constants';
 import SparklesIcon from '../icons/SparklesIcon';
 import BeakerIcon from '../icons/BeakerIcon';
 import WorkflowIcon from '../icons/WorkflowIcon';
@@ -10,49 +11,121 @@ import ArrowPathIcon from '../icons/ArrowPathIcon';
 import TestResponseModal from './TestResponseModal';
 import { promptToMarkdown, sanitizeFilename } from '../../utils/exportUtils';
 
+const SFLEditor: React.FC<{ prompt: PromptSFL; onChange: (p: PromptSFL) => void }> = ({ prompt, onChange }) => {
+    
+    const commonInputClasses = "w-full px-3 py-2 bg-gray-900 border border-gray-600 text-gray-50 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm";
+    const labelClasses = "block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1";
 
-const SFLDetail: React.FC<{ label: string, value: string | string[] | undefined }> = ({ label, value }) => {
-    const displayValue = Array.isArray(value) ? value.join(', ') : value;
-    if (!displayValue) return null;
-    return (
+    const handleFieldChange = (section: 'sflField' | 'sflTenor' | 'sflMode', key: string, value: any) => {
+        const updated = {
+            ...prompt,
+            [section]: {
+                ...prompt[section],
+                [key]: value
+            }
+        };
+        onChange(updated);
+    };
+
+    const handleTargetAudienceChange = (audience: string) => {
+        const current = prompt.sflTenor.targetAudience || [];
+        const updated = current.includes(audience)
+            ? current.filter(a => a !== audience)
+            : [...current, audience];
+        handleFieldChange('sflTenor', 'targetAudience', updated);
+    };
+
+    // Helpers
+    const renderInput = (section: 'sflField' | 'sflTenor' | 'sflMode', key: string, label: string, placeholder?: string) => (
         <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-            <p className="text-sm text-gray-200">{displayValue}</p>
+            <label className={labelClasses}>{label}</label>
+            <input 
+                type="text" 
+                // @ts-ignore
+                value={prompt[section][key] || ''} 
+                onChange={(e) => handleFieldChange(section, key, e.target.value)}
+                className={commonInputClasses}
+                placeholder={placeholder}
+            />
         </div>
     );
-};
 
-const SFLViewer: React.FC<{ prompt: PromptSFL }> = ({ prompt }) => (
-    <div className="space-y-6">
-        <fieldset className="border border-gray-700 p-4 rounded-md">
-            <legend className="text-lg font-medium text-amber-400 px-2">Field</legend>
-            <div className="space-y-3 mt-2">
-                <SFLDetail label="Topic" value={prompt.sflField.topic} />
-                <SFLDetail label="Task Type" value={prompt.sflField.taskType} />
-                <SFLDetail label="Domain Specifics" value={prompt.sflField.domainSpecifics} />
-                <SFLDetail label="Keywords" value={prompt.sflField.keywords} />
+    const renderSelect = (section: 'sflField' | 'sflTenor' | 'sflMode', key: string, label: string, options: string[]) => {
+        // @ts-ignore
+        const currentValue = prompt[section][key] || '';
+        // Ensure current value is in options if set, to support custom values
+        const effectiveOptions = (currentValue && !options.includes(currentValue)) 
+            ? [currentValue, ...options] 
+            : options;
+
+        return (
+             <div>
+                <label className={labelClasses}>{label}</label>
+                <select 
+                    value={currentValue} 
+                    onChange={(e) => handleFieldChange(section, key, e.target.value)}
+                    className={commonInputClasses}
+                >
+                    <option value="">Select...</option>
+                    {effectiveOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
             </div>
-        </fieldset>
-        <fieldset className="border border-gray-700 p-4 rounded-md">
-            <legend className="text-lg font-medium text-violet-400 px-2">Tenor</legend>
-            <div className="space-y-3 mt-2">
-                <SFLDetail label="AI Persona" value={prompt.sflTenor.aiPersona} />
-                <SFLDetail label="Target Audience" value={prompt.sflTenor.targetAudience} />
-                <SFLDetail label="Desired Tone" value={prompt.sflTenor.desiredTone} />
-                <SFLDetail label="Interpersonal Stance" value={prompt.sflTenor.interpersonalStance} />
-            </div>
-        </fieldset>
-        <fieldset className="border border-gray-700 p-4 rounded-md">
-            <legend className="text-lg font-medium text-pink-400 px-2">Mode</legend>
-            <div className="space-y-3 mt-2">
-                <SFLDetail label="Output Format" value={prompt.sflMode.outputFormat} />
-                <SFLDetail label="Rhetorical Structure" value={prompt.sflMode.rhetoricalStructure} />
-                <SFLDetail label="Length Constraint" value={prompt.sflMode.lengthConstraint} />
-                <SFLDetail label="Textual Directives" value={prompt.sflMode.textualDirectives} />
-            </div>
-        </fieldset>
-    </div>
-);
+        );
+    };
+
+    return (
+        <div className="space-y-6">
+             {/* Field */}
+             <fieldset className="border border-gray-700 p-4 rounded-md">
+                <legend className="text-lg font-medium text-amber-400 px-2">Field</legend>
+                <div className="space-y-4 mt-2">
+                    {renderInput('sflField', 'topic', 'Topic')}
+                    {renderSelect('sflField', 'taskType', 'Task Type', TASK_TYPES)}
+                    {renderInput('sflField', 'domainSpecifics', 'Domain Specifics')}
+                    {renderInput('sflField', 'keywords', 'Keywords')}
+                </div>
+             </fieldset>
+
+             {/* Tenor */}
+             <fieldset className="border border-gray-700 p-4 rounded-md">
+                <legend className="text-lg font-medium text-violet-400 px-2">Tenor</legend>
+                <div className="space-y-4 mt-2">
+                    {renderSelect('sflTenor', 'aiPersona', 'AI Persona', AI_PERSONAS)}
+                    {renderSelect('sflTenor', 'desiredTone', 'Desired Tone', DESIRED_TONES)}
+                    <div>
+                        <label className={labelClasses}>Target Audience</label>
+                        <div className="grid grid-cols-2 gap-2 mt-1 max-h-32 overflow-y-auto p-2 border border-gray-700 rounded-md bg-gray-900">
+                            {TARGET_AUDIENCES.map(audience => (
+                                <div key={audience} className="flex items-center">
+                                    <input
+                                        id={`studio-audience-${audience}`}
+                                        type="checkbox"
+                                        checked={(prompt.sflTenor.targetAudience || []).includes(audience)}
+                                        onChange={() => handleTargetAudienceChange(audience)}
+                                        className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                                    />
+                                    <label htmlFor={`studio-audience-${audience}`} className="ml-2 text-sm text-gray-300 select-none">{audience}</label>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    {renderInput('sflTenor', 'interpersonalStance', 'Interpersonal Stance')}
+                </div>
+             </fieldset>
+
+             {/* Mode */}
+             <fieldset className="border border-gray-700 p-4 rounded-md">
+                <legend className="text-lg font-medium text-pink-400 px-2">Mode</legend>
+                <div className="space-y-4 mt-2">
+                    {renderSelect('sflMode', 'outputFormat', 'Output Format', OUTPUT_FORMATS)}
+                    {renderInput('sflMode', 'rhetoricalStructure', 'Rhetorical Structure')}
+                    {renderSelect('sflMode', 'lengthConstraint', 'Length Constraint', LENGTH_CONSTRAINTS)}
+                    {renderInput('sflMode', 'textualDirectives', 'Textual Directives')}
+                </div>
+             </fieldset>
+        </div>
+    )
+}
 
 interface PromptRefinementStudioProps {
     prompts: PromptSFL[];
@@ -72,7 +145,7 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({
         if (!prompt) return;
         setIsRegeneratingText(true);
         try {
-            const suggestion = "The SFL metadata has been updated. Regenerate the `promptText`, `title`, and `exampleOutput` to be fully consistent with the new SFL data. Preserve the core goal but ensure the text reflects all SFL parameters accurately.";
+            const suggestion = "The SFL metadata has been manually updated by the user. Regenerate the `promptText`, `title`, and `exampleOutput` to be fully consistent with the new SFL data. Preserve the core goal but ensure the text reflects all SFL parameters accurately.";
             const fullyRegeneratedData = await regenerateSFLFromSuggestion(prompt, suggestion);
             const updatedPrompt = {
                 ...prompt,
@@ -168,7 +241,7 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({
             <div className="p-4 overflow-y-auto flex-grow">
                 {prompt ? (
                     <div className="space-y-6">
-                        <SFLViewer prompt={prompt} />
+                        <SFLEditor prompt={prompt} onChange={onPromptChange} />
                         
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">

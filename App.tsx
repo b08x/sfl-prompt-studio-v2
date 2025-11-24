@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PromptSFL, Filters, ModalType, Workflow, Task, DataStore, StagedUserInput, PromptVersion } from './types';
 import Sidebar from './components/Sidebar';
@@ -669,7 +668,6 @@ const App: React.FC = () => {
           }}
           appConstants={appConstants}
           onAddConstant={handleAddConstant}
-          prompts={prompts}
         />
       )}
 
