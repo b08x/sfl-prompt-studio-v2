@@ -81,6 +81,15 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
     const nextStartTimeRef = useRef<number>(0);
     const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
+    // BUG FIX: Maintain a ref to the active prompt.
+    // The Live API callbacks form a closure when the connection starts.
+    // Without this ref, the handler uses the stale 'activePrompt' from when the connection opened,
+    // causing updates to overwrite each other or revert to old states.
+    const activePromptRef = useRef(activePrompt);
+    useEffect(() => {
+        activePromptRef.current = activePrompt;
+    }, [activePrompt]);
+
     const isIdeationMode = activePage === 'lab' && labTab === 'ideation' && activePrompt && onUpdatePrompt;
 
     const systemInstruction = useMemo(() => {
@@ -143,19 +152,22 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
         sflTenor?: Partial<SFLTenor>;
         sflMode?: Partial<SFLMode>;
     }) => {
-        if (!activePrompt || !onUpdatePrompt) return;
+        // BUG FIX: Use the ref to get the latest prompt state
+        const currentPrompt = activePromptRef.current;
+        if (!currentPrompt || !onUpdatePrompt) return;
         
         console.log("Executing Tool: updatePromptComponents", args);
         
         const updatedPrompt = {
-            ...activePrompt,
-            sflField: { ...activePrompt.sflField, ...(args.sflField || {}) },
-            sflTenor: { ...activePrompt.sflTenor, ...(args.sflTenor || {}) },
-            sflMode: { ...activePrompt.sflMode, ...(args.sflMode || {}) },
+            ...currentPrompt,
+            sflField: { ...currentPrompt.sflField, ...(args.sflField || {}) },
+            sflTenor: { ...currentPrompt.sflTenor, ...(args.sflTenor || {}) },
+            sflMode: { ...currentPrompt.sflMode, ...(args.sflMode || {}) },
+            updatedAt: new Date().toISOString()
         };
         onUpdatePrompt(updatedPrompt);
 
-    }, [activePrompt, onUpdatePrompt]);
+    }, [onUpdatePrompt]);
 
     const startConversation = useCallback(async () => {
         if (!isOpen) return;
