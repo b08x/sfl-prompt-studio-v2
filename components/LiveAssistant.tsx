@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { GoogleGenAI, Modality, LiveSession, FunctionDeclaration, Type, LiveServerMessage } from '@google/genai';
+import { GoogleGenAI, Modality, FunctionDeclaration, Type, LiveServerMessage } from '@google/genai';
 import { encode, decode, decodeAudioData } from '../utils/audioUtils';
 import type { TranscriptEntry, SFLField, SFLTenor, SFLMode, PromptSFL, Workflow } from '../types';
 
@@ -70,7 +70,8 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
     const [error, setError] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-    const sessionRef = useRef<LiveSession | null>(null);
+    // LiveSession is not exported, so using any.
+    const sessionRef = useRef<any | null>(null);
     const inputAudioContextRef = useRef<AudioContext | null>(null);
     const outputAudioContextRef = useRef<AudioContext | null>(null);
     const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -103,7 +104,6 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
     }, [transcript, status]);
 
     const cleanup = useCallback(() => {
-        // ... (Cleanup logic from useLiveConversation)
         if (scriptProcessorRef.current) {
             scriptProcessorRef.current.onaudioprocess = null;
             scriptProcessorRef.current.disconnect();
@@ -161,7 +161,6 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
         setTranscript([{ speaker: 'model', text: isIdeationMode ? "I'm ready to refine the prompt. How can I help?" : "Hello! How can I help you?", isFinal: true}]);
 
         try {
-            // ... (Rest of startConversation logic from useLiveConversation)
             if (!process.env.API_KEY) throw new Error("API key not found.");
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaStreamRef.current = stream;

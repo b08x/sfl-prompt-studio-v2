@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { PromptSFL } from '../../types';
-import { testPromptWithGemini } from '../../services/geminiService';
+import { testPrompt } from '../../services/sflService';
 import ModalShell from '../ModalShell';
 import SparklesIcon from '../icons/SparklesIcon';
 
@@ -47,7 +48,7 @@ const TestResponseModal: React.FC<TestResponseModalProps> = ({ isOpen, onClose, 
         });
 
         try {
-            const responseText = await testPromptWithGemini(finalPromptText);
+            const responseText = await testPrompt(finalPromptText);
             setResponse(responseText);
         } catch (err: any) {
             setError(err.message || 'An unknown error occurred.');

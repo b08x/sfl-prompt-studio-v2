@@ -1,7 +1,7 @@
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import { PromptSFL, Workflow, TaskType, Task } from '../../types';
-import { regenerateSFLFromSuggestion } from '../../services/geminiService';
+import { regenerateSFLFromSuggestion } from '../../services/sflService';
 import { TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS } from '../../constants';
 import SparklesIcon from '../icons/SparklesIcon';
 import BeakerIcon from '../icons/BeakerIcon';
@@ -12,7 +12,6 @@ import TestResponseModal from './TestResponseModal';
 import { promptToMarkdown, sanitizeFilename } from '../../utils/exportUtils';
 
 const SFLEditor: React.FC<{ prompt: PromptSFL; onChange: (p: PromptSFL) => void }> = ({ prompt, onChange }) => {
-    
     const commonInputClasses = "w-full px-3 py-2 bg-gray-900 border border-gray-600 text-gray-50 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm";
     const labelClasses = "block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1";
 
@@ -35,7 +34,6 @@ const SFLEditor: React.FC<{ prompt: PromptSFL; onChange: (p: PromptSFL) => void 
         handleFieldChange('sflTenor', 'targetAudience', updated);
     };
 
-    // Helpers
     const renderInput = (section: 'sflField' | 'sflTenor' | 'sflMode', key: string, label: string, placeholder?: string) => (
         <div>
             <label className={labelClasses}>{label}</label>
@@ -53,10 +51,7 @@ const SFLEditor: React.FC<{ prompt: PromptSFL; onChange: (p: PromptSFL) => void 
     const renderSelect = (section: 'sflField' | 'sflTenor' | 'sflMode', key: string, label: string, options: string[]) => {
         // @ts-ignore
         const currentValue = prompt[section][key] || '';
-        // Ensure current value is in options if set, to support custom values
-        const effectiveOptions = (currentValue && !options.includes(currentValue)) 
-            ? [currentValue, ...options] 
-            : options;
+        const effectiveOptions = (currentValue && !options.includes(currentValue)) ? [currentValue, ...options] : options;
 
         return (
              <div>
@@ -75,7 +70,6 @@ const SFLEditor: React.FC<{ prompt: PromptSFL; onChange: (p: PromptSFL) => void 
 
     return (
         <div className="space-y-6">
-             {/* Field */}
              <fieldset className="border border-gray-700 p-4 rounded-md">
                 <legend className="text-lg font-medium text-amber-400 px-2">Field</legend>
                 <div className="space-y-4 mt-2">
@@ -85,8 +79,6 @@ const SFLEditor: React.FC<{ prompt: PromptSFL; onChange: (p: PromptSFL) => void 
                     {renderInput('sflField', 'keywords', 'Keywords')}
                 </div>
              </fieldset>
-
-             {/* Tenor */}
              <fieldset className="border border-gray-700 p-4 rounded-md">
                 <legend className="text-lg font-medium text-violet-400 px-2">Tenor</legend>
                 <div className="space-y-4 mt-2">
@@ -112,8 +104,6 @@ const SFLEditor: React.FC<{ prompt: PromptSFL; onChange: (p: PromptSFL) => void 
                     {renderInput('sflTenor', 'interpersonalStance', 'Interpersonal Stance')}
                 </div>
              </fieldset>
-
-             {/* Mode */}
              <fieldset className="border border-gray-700 p-4 rounded-md">
                 <legend className="text-lg font-medium text-pink-400 px-2">Mode</legend>
                 <div className="space-y-4 mt-2">
@@ -135,9 +125,7 @@ interface PromptRefinementStudioProps {
     onSelectPrompt: (promptId: string | null) => void;
 }
 
-const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ 
-    prompts, onTestInWorkflow, prompt, onPromptChange, onSelectPrompt 
-}) => {
+const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ prompts, onTestInWorkflow, prompt, onPromptChange, onSelectPrompt }) => {
     const [isTestModalOpen, setIsTestModalOpen] = useState(false);
     const [isRegeneratingText, setIsRegeneratingText] = useState(false);
 
@@ -145,7 +133,7 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({
         if (!prompt) return;
         setIsRegeneratingText(true);
         try {
-            const suggestion = "The SFL metadata has been manually updated by the user. Regenerate the `promptText`, `title`, and `exampleOutput` to be fully consistent with the new SFL data. Preserve the core goal but ensure the text reflects all SFL parameters accurately.";
+            const suggestion = "The SFL metadata has been updated. Regenerate the `promptText`, `title`, and `exampleOutput` to be fully consistent with the new SFL data.";
             const fullyRegeneratedData = await regenerateSFLFromSuggestion(prompt, suggestion);
             const updatedPrompt = {
                 ...prompt,
@@ -183,11 +171,8 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({
     
     const handleTestInWorkflow = () => {
         if (!prompt) return;
-
-        const variables = prompt.promptText.match(/{{\s*(\w+)\s*}}/g)
-            ?.map(v => v.replace(/{{\s*|\s*}}/g, '')) || [];
+        const variables = prompt.promptText.match(/{{\s*(\w+)\s*}}/g)?.map(v => v.replace(/{{\s*|\s*}}/g, '')) || [];
         const uniqueVars: string[] = [...new Set<string>(variables)];
-
         const mainInputVar = uniqueVars.length > 0 ? uniqueVars[0] : 'mainInput';
         const requiresInput = uniqueVars.length > 0;
         
@@ -242,7 +227,6 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({
                 {prompt ? (
                     <div className="space-y-6">
                         <SFLEditor prompt={prompt} onChange={onPromptChange} />
-                        
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
                                 <h3 className="text-lg font-medium text-gray-200">Prompt Text</h3>
@@ -271,42 +255,18 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({
                 ) : <p className="text-gray-400 text-center pt-10">Select a prompt to begin refining with the Live Assistant.</p>}
             </div>
              <div className="flex-shrink-0 p-3 border-t border-gray-700 bg-gray-900/50 flex items-center justify-end space-x-3">
-                <button
-                    onClick={() => setIsTestModalOpen(true)}
-                    disabled={!prompt}
-                    className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
-                    title="Test prompt response"
-                >
-                    <BeakerIcon className="w-4 h-4" />
-                    <span>Test Response</span>
+                <button onClick={() => setIsTestModalOpen(true)} disabled={!prompt} className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50">
+                    <BeakerIcon className="w-4 h-4" /><span>Test Response</span>
                 </button>
-                <button
-                     onClick={handleTestInWorkflow}
-                     disabled={!prompt}
-                    className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
-                    title="Test prompt in a workflow"
-                >
-                    <WorkflowIcon className="w-4 h-4" />
-                    <span>Test in Workflow</span>
+                <button onClick={handleTestInWorkflow} disabled={!prompt} className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50">
+                    <WorkflowIcon className="w-4 h-4" /><span>Test in Workflow</span>
                 </button>
-                <button
-                    onClick={handleExportMarkdown}
-                    disabled={!prompt}
-                    className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
-                    title="Export as Markdown"
-                >
-                    <ArrowDownTrayIcon className="w-4 h-4" />
-                    <span>Export MD</span>
+                <button onClick={handleExportMarkdown} disabled={!prompt} className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50">
+                    <ArrowDownTrayIcon className="w-4 h-4" /><span>Export MD</span>
                 </button>
             </div>
         </div>
-        {isTestModalOpen && prompt && (
-            <TestResponseModal 
-                isOpen={isTestModalOpen}
-                onClose={() => setIsTestModalOpen(false)}
-                prompt={prompt}
-            />
-        )}
+        {isTestModalOpen && prompt && <TestResponseModal isOpen={isTestModalOpen} onClose={() => setIsTestModalOpen(false)} prompt={prompt} />}
       </>
     );
 };

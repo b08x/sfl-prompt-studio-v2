@@ -1,11 +1,9 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { PromptSFL, SFLField, SFLTenor, SFLMode, PromptVersion, SFLAnalysis } from '../types';
-import { TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS, INITIAL_PROMPT_SFL } from '../constants';
+import { regenerateSFLFromSuggestion, analyzeSFL } from '../services/sflService';
+import { INITIAL_PROMPT_SFL } from '../constants';
 import ModalShell from './ModalShell';
-import { regenerateSFLFromSuggestion } from '../services/geminiService';
-import { analyzeSFLWithGemini } from '../services/sflValidator';
 import SparklesIcon from './icons/SparklesIcon';
 import PaperClipIcon from './icons/PaperClipIcon';
 import XCircleIcon from './icons/XCircleIcon';
@@ -52,13 +50,11 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
      setIsFixing(false);
   }, [promptToEdit, isOpen]);
   
-  // Debounced AI-powered SFL analysis
   useEffect(() => {
     if (analysisTimeoutRef.current) {
         clearTimeout(analysisTimeoutRef.current);
     }
     
-    // Don't analyze the initial empty prompt on create
     if (!formData.title && !formData.promptText) {
         setSflAnalysis(null);
         setIsAnalyzing(false);
@@ -70,7 +66,7 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
     analysisTimeoutRef.current = window.setTimeout(async () => {
         try {
             const promptForAnalysis = { ...INITIAL_PROMPT_SFL, ...formData };
-            const analysis = await analyzeSFLWithGemini(promptForAnalysis);
+            const analysis = await analyzeSFL(promptForAnalysis);
             setSflAnalysis(analysis);
         } catch (error) {
             console.error("Analysis failed", error);
@@ -87,7 +83,7 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
         } finally {
             setIsAnalyzing(false);
         }
-    }, 1000); // 1-second debounce
+    }, 1000);
 
     return () => {
         if (analysisTimeoutRef.current) {
@@ -145,8 +141,6 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
     if (!regenState.suggestion.trim()) return;
     setRegenState(prev => ({ ...prev, loading: true }));
     try {
-      // FIX: The `regenerateSFLFromSuggestion` function expects a more complete prompt object,
-      // including versioning information. We construct it here before passing it.
       const promptForRegeneration = {
         ...formData,
         version: promptToEdit?.version ?? 1,
@@ -181,7 +175,6 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
         
         const fixedData = await regenerateSFLFromSuggestion(promptForRegeneration, suggestion);
         setFormData(fixedData);
-        // Re-analysis is triggered automatically by the useEffect watching formData
     } catch (error) {
         console.error("Auto-fix failed", error);
         alert("Failed to apply auto-fixes. Please review the issues manually.");
@@ -200,7 +193,6 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
       };
       reader.readAsText(file);
     }
-    // Reset file input value to allow re-uploading the same file
     if(event.target) event.target.value = '';
   };
 
@@ -214,7 +206,6 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
     const now = new Date().toISOString();
 
     if (promptToEdit) {
-      // Create a version from the state *before* editing
       const previousVersion: PromptVersion = {
         version: promptToEdit.version,
         promptText: promptToEdit.promptText,
@@ -228,31 +219,29 @@ const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSa
       };
 
       const finalPrompt: PromptSFL = {
-        ...promptToEdit, // Carry over id, createdAt, etc.
-        ...formData, // Apply the new form data
+        ...promptToEdit, 
+        ...formData, 
         updatedAt: now,
         version: promptToEdit.version + 1,
         history: [...(promptToEdit.history || []), previousVersion],
-        sflAnalysis: sflAnalysis || undefined, // Save current analysis
+        sflAnalysis: sflAnalysis || undefined,
       };
       onSave(finalPrompt);
     } else {
-      // This is a new prompt
       const finalPrompt: PromptSFL = {
         ...formData,
         id: crypto.randomUUID(),
         createdAt: now,
         updatedAt: now,
-        version: 1, // First version
-        history: [], // No history yet
+        version: 1, 
+        history: [], 
         isTesting: false,
-        sflAnalysis: sflAnalysis || undefined, // Save current analysis
+        sflAnalysis: sflAnalysis || undefined, 
       };
       onSave(finalPrompt);
     }
     onClose();
   };
-
 
   const commonInputClasses = "w-full px-3 py-2 bg-gray-900 border border-gray-700 text-gray-50 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors placeholder-gray-500";
   const labelClasses = "block text-sm font-medium text-gray-300 mb-1";

@@ -38,7 +38,6 @@ const DetailItem: React.FC<{ label: string; value?: string | null | string[]; is
   );
 };
 
-
 const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, prompt, onEdit, onDelete, onTestWithGemini, onExportPrompt, onExportPromptMarkdown, onRevert }) => {
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
   const [isDocVisible, setDocVisible] = useState(false);
@@ -57,11 +56,8 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
 
   const displayedData = useMemo(() => {
     if (!prompt) return null;
-    if (viewedVersion === 'latest') {
-        return prompt;
-    }
+    if (viewedVersion === 'latest') return prompt;
     const historicVersion = prompt.history.find(v => v.version === viewedVersion);
-    // Create a temporary PromptSFL-like object for display
     return historicVersion ? { ...prompt, ...historicVersion, updatedAt: historicVersion.createdAt } : prompt;
   }, [prompt, viewedVersion]);
   
@@ -74,10 +70,7 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
   }, [displayedData?.promptText]);
 
   const handleVariableChange = (varName: string, value: string) => {
-    setVariableValues(prev => ({
-        ...prev,
-        [varName]: value,
-    }));
+    setVariableValues(prev => ({ ...prev, [varName]: value }));
   };
 
   useEffect(() => {
@@ -86,7 +79,6 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
     }
   }, [isOpen]);
 
-  // Reset states when the displayed data (prompt or version) changes
   useEffect(() => {
     if (displayedData) {
       const initialValues: Record<string, string> = {};
@@ -101,13 +93,11 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
     if (!prompt || viewedVersion === 'latest') return;
     const versionToRevertTo = prompt.history.find(v => v.version === viewedVersion);
     if (!versionToRevertTo) return;
-
     if (window.confirm(`Are you sure you want to revert to Version ${versionToRevertTo.version}? This will create a new version with this content.`)) {
         onRevert(prompt, versionToRevertTo);
         setViewedVersion('latest');
     }
   };
-
 
   const handleCopyDocContent = () => {
     if (displayedData?.sourceDocument?.content) {
@@ -122,7 +112,6 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
   return (
     <ModalShell isOpen={isOpen} onClose={onClose} title={displayedData.title} size="4xl">
       <div className="space-y-6 text-gray-50">
-      
         <section className="border border-gray-700 p-4 rounded-lg bg-gray-900/50">
             <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center space-x-2">
@@ -226,7 +215,7 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
                     onChange={(e) => handleVariableChange(varName, e.target.value)}
                     placeholder={`Enter value for ${varName}...`}
                     rows={2}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors placeholder-gray-500 text-gray-50"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-50"
                   />
                 </div>
               ))}
@@ -256,43 +245,20 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
         )}
 
         <div className="flex flex-wrap justify-end gap-3 pt-6 border-t border-gray-700 mt-6">
-          <button
-            onClick={() => onExportPrompt(displayedData as PromptSFL)}
-            className="px-3 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 flex items-center"
-            aria-label="Export this prompt as JSON"
-          >
+          <button onClick={() => onExportPrompt(displayedData as PromptSFL)} className="px-3 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 flex items-center">
             <ArrowDownTrayIcon className="w-5 h-5 mr-2"/> Export JSON
           </button>
-          <button
-            onClick={() => onExportPromptMarkdown(displayedData as PromptSFL)}
-            className="px-3 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 flex items-center"
-            aria-label="Export this prompt as Markdown"
-          >
+          <button onClick={() => onExportPromptMarkdown(displayedData as PromptSFL)} className="px-3 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 flex items-center">
             <DocumentTextIcon className="w-5 h-5 mr-2"/> Export MD
           </button>
-          <button
-            onClick={() => onTestWithGemini(prompt, variableValues)}
-            disabled={prompt.isTesting || viewedVersion !== 'latest'}
-            className="px-3 py-2 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600 disabled:bg-opacity-50 disabled:cursor-not-allowed flex items-center"
-            title={viewedVersion !== 'latest' ? "Switch to latest version to test" : "Test prompt"}
-          >
+          <button onClick={() => onTestWithGemini(prompt, variableValues)} disabled={prompt.isTesting || viewedVersion !== 'latest'} className="px-3 py-2 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600 disabled:bg-opacity-50 disabled:cursor-not-allowed flex items-center">
             <SparklesIcon className="w-5 h-5 mr-2"/>
             {prompt.isTesting ? 'Testing...' : 'Test with Gemini'}
           </button>
-          <button
-            onClick={() => { onEdit(prompt); onClose(); }}
-            disabled={viewedVersion !== 'latest'}
-            className="px-3 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-            title={viewedVersion !== 'latest' ? "Switch to latest version to edit" : "Edit prompt"}
-          >
+          <button onClick={() => { onEdit(prompt); onClose(); }} disabled={viewedVersion !== 'latest'} className="px-3 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
            <PencilIcon className="w-5 h-5 mr-2"/> Edit
           </button>
-          <button
-            onClick={() => { if(window.confirm('Are you sure you want to delete this prompt?')) { onDelete(prompt.id); onClose(); }}}
-            disabled={viewedVersion !== 'latest'}
-            className="px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-500 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-            title={viewedVersion !== 'latest' ? "Switch to latest version to delete" : "Delete prompt"}
-          >
+          <button onClick={() => { if(window.confirm('Are you sure you want to delete this prompt?')) { onDelete(prompt.id); onClose(); }}} disabled={viewedVersion !== 'latest'} className="px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-500 flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
            <TrashIcon className="w-5 h-5 mr-2"/> Delete
           </button>
         </div>

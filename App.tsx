@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PromptSFL, Filters, ModalType, Workflow, Task, DataStore, StagedUserInput, PromptVersion } from './types';
 import Sidebar from './components/Sidebar';
@@ -10,7 +11,7 @@ import PromptWizardModal from './components/PromptWizardModal';
 import HelpModal from './components/HelpModal';
 import Documentation from './components/Documentation';
 import PromptLabPage from './components/lab/PromptLabPage';
-import { testPromptWithGemini } from './services/geminiService';
+import { testPrompt } from './services/sflService';
 import { TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS, POPULAR_TAGS } from './constants';
 import { useWorkflowManager } from './hooks/useWorkflowManager';
 import { useWorkflowRunner } from './hooks/useWorkflowRunner';
@@ -112,7 +113,6 @@ type Page = 'dashboard' | 'lab' | 'documentation' | 'settings';
 type LabTab = 'workflow' | 'ideation';
 
 const App: React.FC = () => {
-  // --- Client-Side Persistence for Prompts ---
   const [prompts, setPrompts] = useState<PromptSFL[]>(() => {
     const savedPrompts = localStorage.getItem('sflPrompts');
     try {
@@ -132,7 +132,6 @@ const App: React.FC = () => {
   const importFileRef = useRef<HTMLInputElement>(null);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
 
-  // --- Lifted State for Prompt Lab ---
   const { workflows, saveWorkflow, deleteWorkflow, isLoading: workflowsLoading, saveCustomWorkflows } = useWorkflowManager();
   const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
   const activeWorkflow = useMemo(() => workflows.find(wf => wf.id === activeWorkflowId) || null, [workflows, activeWorkflowId]);
@@ -229,7 +228,6 @@ const App: React.FC = () => {
   };
 
   const handleRevertPrompt = (prompt: PromptSFL, versionToRevertTo: PromptVersion) => {
-    // 1. Create a version of the *current* state before reverting
     const previousVersion: PromptVersion = {
       version: prompt.version,
       promptText: prompt.promptText,
@@ -242,10 +240,8 @@ const App: React.FC = () => {
       createdAt: prompt.updatedAt,
     };
 
-    // 2. Create the new state by overwriting current with old
     const newPromptState: PromptSFL = {
-      ...prompt, // keep id, createdAt, etc.
-      // apply reverted data
+      ...prompt,
       promptText: versionToRevertTo.promptText,
       sflField: versionToRevertTo.sflField,
       sflTenor: versionToRevertTo.sflTenor,
@@ -253,15 +249,13 @@ const App: React.FC = () => {
       exampleOutput: versionToRevertTo.exampleOutput,
       notes: versionToRevertTo.notes,
       sourceDocument: versionToRevertTo.sourceDocument,
-      // update metadata
       updatedAt: new Date().toISOString(),
       version: prompt.version + 1,
       history: [...(prompt.history || []), previousVersion],
-      geminiResponse: undefined, // Clear test results on change
+      geminiResponse: undefined,
       geminiTestError: undefined,
     };
     
-    // 3. Save the new state
     handleSavePrompt(newPromptState);
     alert(`Reverted to version ${versionToRevertTo.version}. A new version (${newPromptState.version}) has been created.`);
   };
@@ -324,7 +318,7 @@ const App: React.FC = () => {
 
 
     try {
-      const responseText = await testPromptWithGemini(finalPromptText);
+      const responseText = await testPrompt(finalPromptText);
       updatePromptState(promptToTest.id, { isTesting: false, geminiResponse: responseText, geminiTestError: undefined });
     } catch (error: any) {
       updatePromptState(promptToTest.id, { isTesting: false, geminiTestError: error.message, geminiResponse: undefined });
@@ -504,9 +498,9 @@ const App: React.FC = () => {
       importedWorkflows.forEach(iw => {
           const index = merged.findIndex(cw => cw.id === iw.id);
           if (index !== -1) {
-              merged[index] = iw; // Overwrite
+              merged[index] = iw;
           } else {
-              merged.push(iw); // Add new
+              merged.push(iw);
           }
       });
       
@@ -524,7 +518,6 @@ const App: React.FC = () => {
     try {
       const markdown = promptToMarkdown(prompt);
       navigator.clipboard.writeText(markdown).then(() => {
-        // The UI on the card will give feedback, so a silent success is fine.
       }, (err) => {
         console.error('Could not copy markdown to clipboard: ', err);
         alert('Failed to copy markdown to clipboard.');
@@ -605,12 +598,9 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-gray-900 font-sans">
       <Sidebar 
-        // Dashboard
         filters={filters}
         onFilterChange={handleFilterChange}
         popularTags={appConstants.popularTags}
-        
-        // Navigation
         activePage={activePage}
         onNavigate={handleNavigate}
         isCollapsed={isSidebarCollapsed}
@@ -697,7 +687,6 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Live Assistant Components */}
       <LiveAssistant
         isOpen={isAssistantOpen}
         onClose={() => setIsAssistantOpen(false)}

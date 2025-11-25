@@ -1,10 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Workflow, PromptSFL } from '../../../types';
-import { generateWorkflowFromGoal } from '../../../services/geminiService';
+import { generateWorkflowFromGoal } from '../../../services/workflowService';
 import ModalShell from '../../ModalShell';
 import WorkflowEditorModal from './WorkflowEditorModal';
-
 
 interface WorkflowWizardModalProps {
     isOpen: boolean;
@@ -76,7 +75,6 @@ const WorkflowWizardModal: React.FC<WorkflowWizardModalProps> = ({ isOpen, onClo
                     </div>
                 );
             case 'refinement':
-                // Piggyback on the existing editor modal for the refinement step
                 return (
                     <WorkflowEditorModal
                         isOpen={true}
@@ -97,7 +95,6 @@ const WorkflowWizardModal: React.FC<WorkflowWizardModalProps> = ({ isOpen, onClo
         }
     };
 
-    // Use a different modal shell unless we are in refinement step
     if (step === 'refinement') {
         return renderContent();
     }

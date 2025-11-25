@@ -1,7 +1,7 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { PromptSFL } from '../types';
-import { generateSFLFromGoal, regenerateSFLFromSuggestion } from '../services/geminiService';
+import { generateSFLFromGoal, regenerateSFLFromSuggestion } from '../services/sflService';
 import { INITIAL_PROMPT_SFL } from '../constants';
 import ModalShell from './ModalShell';
 import SparklesIcon from './icons/SparklesIcon';
@@ -106,7 +106,7 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
 
     const handleSFLChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        const [sflType, field] = name.split('.'); // e.g., name="sflField.topic"
+        const [sflType, field] = name.split('.'); 
         setFormData(prev => ({
             ...prev,
             [sflType]: {
@@ -164,7 +164,7 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
         setIsUpdating(true);
         setErrorMessage('');
         try {
-            const suggestion = "The SFL fields (Field, Tenor, Mode) have been manually updated by the user. Please regenerate the 'promptText', 'title', 'exampleOutput', and 'notes' to be fully consistent with the updated SFL data. The core goal of the prompt should be preserved, but its expression and details must align with the new SFL parameters.";
+            const suggestion = "The SFL fields have been manually updated. Regenerate the 'promptText', 'title', 'exampleOutput', and 'notes' to be consistent with the updated SFL data. Preserve the core goal.";
             const regeneratedData = await regenerateSFLFromSuggestion(formData, suggestion);
             setFormData(regeneratedData);
         } catch (error: any) {
