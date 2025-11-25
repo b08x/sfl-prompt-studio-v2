@@ -8,12 +8,6 @@ interface ValidationResult {
   error?: string;
 }
 
-/**
- * Maps HTTP error codes to ApiKeyStatus.
- * 401/403 -> invalid
- * 429 -> ratelimited
- * others -> invalid (generic error)
- */
 const mapErrorToStatus = (error: any): ValidationResult => {
   console.warn("API Validation Error:", error);
   
@@ -27,7 +21,6 @@ const mapErrorToStatus = (error: any): ValidationResult => {
     return { status: 'ratelimited', error: 'Rate Limit Exceeded (429)' };
   }
   
-  // Check text message for common error strings if status is missing
   const lowerMsg = String(message).toLowerCase();
   if (lowerMsg.includes('api key') && (lowerMsg.includes('invalid') || lowerMsg.includes('incorrect'))) {
       return { status: 'invalid', error: message };
@@ -39,9 +32,6 @@ const mapErrorToStatus = (error: any): ValidationResult => {
   return { status: 'invalid', error: message };
 };
 
-/**
- * Validates an API key for a specific provider by making a minimal request (1 token).
- */
 export const validateApiKey = async (provider: AIProvider, apiKey: string): Promise<ValidationResult> => {
   if (!apiKey || !apiKey.trim()) {
     return { status: 'invalid', error: 'API Key is empty' };
@@ -81,7 +71,6 @@ export const validateApiKey = async (provider: AIProvider, apiKey: string): Prom
             'X-Title': 'SFL Prompt Studio'
           }
         });
-        // Use a cheap/free model for validation if possible, or a standard one
         await openai.chat.completions.create({
           messages: [{ role: 'user', content: 'test' }],
           model: 'openai/gpt-3.5-turbo', 
@@ -91,14 +80,13 @@ export const validateApiKey = async (provider: AIProvider, apiKey: string): Prom
       }
 
       case AIProvider.Anthropic: {
-        // Using fetch for lightweight validation and to avoid package conflicts in browser
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
                 'x-api-key': apiKey,
                 'anthropic-version': '2023-06-01',
                 'content-type': 'application/json',
-                'dangerously-allow-browser': 'true' // Anthropic specific
+                'dangerously-allow-browser': 'true'
             },
             body: JSON.stringify({
                 model: 'claude-3-haiku-20240307',
@@ -115,7 +103,6 @@ export const validateApiKey = async (provider: AIProvider, apiKey: string): Prom
       }
 
       case AIProvider.Mistral: {
-        // Using fetch for lightweight validation
         const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
             method: 'POST',
             headers: {

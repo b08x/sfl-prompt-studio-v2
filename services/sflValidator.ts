@@ -1,6 +1,7 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { PromptSFL, SFLAnalysis } from '../types';
-import { parseJsonFromText } from './geminiService';
+import { parseJsonFromText } from '../utils/jsonUtils';
 
 // Helper function to get a configured AI instance
 const getAiInstance = () => {
