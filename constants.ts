@@ -1,4 +1,4 @@
-import { SFLField, SFLTenor, SFLMode, PromptSFL, Workflow, TaskType } from './types';
+import { SFLField, SFLTenor, SFLMode, PromptSFL, Workflow, TaskType, Filters } from './types';
 
 export const TASK_TYPES = [
   "Explanation", "Summarization", "Code Generation", "Creative Writing", 
@@ -60,6 +60,93 @@ export const INITIAL_PROMPT_SFL: Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt
   version: 1,
   history: [],
 };
+
+export const INITIAL_FILTERS: Filters = {
+  searchTerm: '',
+  topic: '',
+  taskType: '',
+  aiPersona: '',
+  outputFormat: '',
+};
+
+export const SAMPLE_PROMPTS: PromptSFL[] = [
+  {
+    id: "1",
+    title: "Python Code Explanation",
+    promptText: "Explain this Python code snippet in simple terms for beginners:\n\n```python\n{{code_snippet}}\n```",
+    sflField: { topic: "Programming", taskType: "Explanation", domainSpecifics: "Python", keywords: "python, beginner, education" },
+    sflTenor: { aiPersona: "Friendly Assistant", targetAudience: ["Beginners"], desiredTone: "Friendly", interpersonalStance: "Helpful tutor" },
+    sflMode: { outputFormat: "Markdown", rhetoricalStructure: "Code block followed by bullet points", lengthConstraint: "Medium Paragraph (~150 words)", textualDirectives: "Use simple language" },
+    createdAt: "2023-05-15T12:00:00Z",
+    updatedAt: "2023-05-15T12:00:00Z",
+    geminiResponse: "This is a test response.",
+    version: 1,
+    history: [],
+  },
+  {
+    id: "2",
+    title: "API Documentation Summary",
+    promptText: "Summarize this API documentation into key points for developers. Focus on endpoints, authentication, and request/response examples.\n\nAPI Documentation:\n{{api_docs}}",
+    sflField: { topic: "Software Development", taskType: "Summarization", domainSpecifics: "REST API", keywords: "technical, api, documentation" },
+    sflTenor: { aiPersona: "Expert", targetAudience: ["Software Developers"], desiredTone: "Concise", interpersonalStance: "Technical writer" },
+    sflMode: { outputFormat: "Bullet-Points", rhetoricalStructure: "Sections for endpoints, authentication, etc.", lengthConstraint: "Detailed (as needed)", textualDirectives: "Focus on practical usage" },
+    createdAt: "2023-05-10T12:00:00Z",
+    updatedAt: "2023-05-10T12:00:00Z",
+    geminiResponse: "This is a test response.",
+    version: 1,
+    history: [],
+  },
+  {
+    id: "3",
+    title: "JSON Data Transformation",
+    promptText: "Convert this JSON data from format A to format B with specific rules...",
+    sflField: { topic: "Data Processing", taskType: "Code Generation", domainSpecifics: "JSON", keywords: "json, data, transformation" },
+    sflTenor: { aiPersona: "Expert", targetAudience: ["Software Developers"], desiredTone: "Formal", interpersonalStance: "Data engineer" },
+    sflMode: { outputFormat: "Json", rhetoricalStructure: "JSON object", lengthConstraint: "Concise (as needed)", textualDirectives: "Adhere to the specified output schema" },
+    createdAt: "2023-05-18T12:00:00Z",
+    updatedAt: "2023-05-18T12:00:00Z",
+    version: 1,
+    history: [],
+  },
+    {
+    id: "4",
+    title: "Technical Concept Explanation",
+    promptText: "Explain blockchain technology to a non-technical audience...",
+    sflField: { topic: "Technology", taskType: "Explanation", domainSpecifics: "Blockchain", keywords: "blockchain, education, simplified" },
+    sflTenor: { aiPersona: "Friendly Assistant", targetAudience: ["General Public"], desiredTone: "Friendly", interpersonalStance: "Patient teacher" },
+    sflMode: { outputFormat: "Paragraph", rhetoricalStructure: "Analogy followed by explanation", lengthConstraint: "Medium Paragraph (~150 words)", textualDirectives: "Avoid technical jargon" },
+    createdAt: "2023-05-12T12:00:00Z",
+    updatedAt: "2023-05-12T12:00:00Z",
+    geminiResponse: "This is a test response.",
+    version: 1,
+    history: [],
+  },
+  {
+    id: "5",
+    title: "Code Debugging Assistant",
+    promptText: "Help identify and fix bugs in this JavaScript code...",
+    sflField: { topic: "Programming", taskType: "Code Generation", domainSpecifics: "JavaScript", keywords: "javascript, debugging, error" },
+    sflTenor: { aiPersona: "Expert", targetAudience: ["Software Developers"], desiredTone: "Formal", interpersonalStance: "Senior developer" },
+    sflMode: { outputFormat: "Code", rhetoricalStructure: "Explanation of bug then corrected code", lengthConstraint: "Concise (as needed)", textualDirectives: "Provide clear fix descriptions" },
+    createdAt: "2023-05-20T12:00:00Z",
+    updatedAt: "2023-05-20T12:00:00Z",
+    version: 1,
+    history: [],
+  },
+  {
+    id: "6",
+    title: "Article Translation",
+    promptText: "Translate this technical article from English to Spanish...",
+    sflField: { topic: "Languages", taskType: "Translation", domainSpecifics: "Technical article", keywords: "translation, spanish, technical" },
+    sflTenor: { aiPersona: "Expert", targetAudience: ["Business Professionals"], desiredTone: "Formal", interpersonalStance: "Professional translator" },
+    sflMode: { outputFormat: "Paragraph", rhetoricalStructure: "Maintain original structure", lengthConstraint: "As per original", textualDirectives: "Use formal Spanish" },
+    createdAt: "2023-05-17T12:00:00Z",
+    updatedAt: "2023-05-17T12:00:00Z",
+    geminiResponse: "This is a test response.",
+    version: 1,
+    history: [],
+  },
+];
 
 // --- PROMPT LAB CONSTANTS ---
 
