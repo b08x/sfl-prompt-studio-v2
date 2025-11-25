@@ -6,6 +6,7 @@ import { INITIAL_FILTERS, SAMPLE_PROMPTS, POPULAR_TAGS, TASK_TYPES, AI_PERSONAS,
 import { AIProvider, ApiKeyStatus, AIModelConfig } from '../types/ai';
 import { validateApiKey } from '../services/validationService';
 import { fetchModels } from '../services/modelDiscoveryService';
+import { secureStorage, StorageMode } from '../utils/secureStorage';
 
 interface AppConstants {
   taskTypes: string[];
@@ -38,6 +39,7 @@ interface StoreState {
   globalModelParams: GlobalModelParams;
   defaultProvider: AIProvider;
   defaultModel: string;
+  storageMode: StorageMode;
 
   // UI State
   activeModal: ModalType;
@@ -58,11 +60,12 @@ interface StoreState {
   saveCustomWorkflows: (workflows: Workflow[]) => void;
 
   // AI Configuration Actions
-  setApiKey: (provider: AIProvider, key: string) => void;
+  setApiKey: (provider: AIProvider, key: string) => Promise<void>;
   validateProviderKey: (provider: AIProvider) => Promise<void>;
   setGlobalModelParams: (params: Partial<GlobalModelParams>) => void;
   setDefaultProvider: (provider: AIProvider) => void;
   setDefaultModel: (model: string) => void;
+  setStorageMode: (mode: StorageMode) => Promise<void>;
 
   setFilters: (filters: Partial<Filters>) => void;
   resetFilters: () => void;
@@ -89,6 +92,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   isInitialized: false,
+  storageMode: 'session',
   userApiKeys: {
     [AIProvider.Google]: '',
     [AIProvider.OpenAI]: '',
@@ -141,23 +145,32 @@ export const useStore = create<StoreState>((set, get) => ({
     // Merge defaults with custom. Note: Defaults are always fresh from constants.
     set({ workflows: [...defaultWorkflows, ...customWorkflows] });
 
-    // Load API Keys from localStorage
+    // Initialize secure storage mode
+    const currentMode = secureStorage.getMode();
+    set({ storageMode: currentMode });
+
+    // Migrate legacy plaintext keys if they exist
     const keysToValidate: AIProvider[] = [];
     try {
-      const storedKeys = localStorage.getItem('sfl_api_keys');
+      if (secureStorage.hasLegacyKeys()) {
+        console.warn('⚠️ Legacy plaintext API keys detected. Migrating to secure storage...');
+        await secureStorage.migrateLegacyKeys();
+      }
+
+      // Load API Keys from secure storage
+      const storedKeys = await secureStorage.getApiKeys();
       if (storedKeys) {
-        const parsedKeys = JSON.parse(storedKeys);
-        set(state => ({ userApiKeys: { ...state.userApiKeys, ...parsedKeys } }));
+        set(state => ({ userApiKeys: { ...state.userApiKeys, ...storedKeys } }));
 
         // Collect keys that need validation
-        Object.entries(parsedKeys).forEach(([provider, key]) => {
+        Object.entries(storedKeys).forEach(([provider, key]) => {
           if (key && typeof key === 'string' && key.trim() !== '') {
             keysToValidate.push(provider as AIProvider);
           }
         });
       }
     } catch (e) {
-      console.error("Failed to load API keys from localStorage", e);
+      console.error("Failed to load API keys from secure storage", e);
     }
 
     // Check for API keys in environment variables (Vite)
@@ -324,19 +337,20 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   // AI Configuration Actions
-  setApiKey: (provider, key) => {
-    set(state => {
-      const newKeys = { ...state.userApiKeys, [provider]: key };
-      try {
-        localStorage.setItem('sfl_api_keys', JSON.stringify(newKeys));
-      } catch (e) {
-        console.error("Failed to save API keys", e);
-      }
-      return {
+  setApiKey: async (provider, key) => {
+    const { userApiKeys, apiKeyValidation } = get();
+    const newKeys = { ...userApiKeys, [provider]: key };
+
+    try {
+      await secureStorage.setApiKeys(newKeys);
+      set({
         userApiKeys: newKeys,
-        apiKeyValidation: { ...state.apiKeyValidation, [provider]: 'unverified' as ApiKeyStatus }
-      };
-    });
+        apiKeyValidation: { ...apiKeyValidation, [provider]: 'unverified' as ApiKeyStatus }
+      });
+    } catch (e) {
+      console.error("Failed to save API keys to secure storage", e);
+      throw e;
+    }
   },
 
   validateProviderKey: async (provider) => {
@@ -420,12 +434,22 @@ export const useStore = create<StoreState>((set, get) => ({
       if (!Array.isArray(currentValues)) return state;
       const lowerCaseValue = value.trim().toLowerCase();
       if (currentValues.map(v => v.toLowerCase()).includes(lowerCaseValue)) return state;
-      
+
       return {
           appConstants: {
               ...state.appConstants,
               [key]: [...currentValues, value.trim()]
           }
       };
-  })
+  }),
+
+  setStorageMode: async (mode) => {
+    try {
+      await secureStorage.setMode(mode);
+      set({ storageMode: mode });
+    } catch (e) {
+      console.error("Failed to set storage mode", e);
+      throw e;
+    }
+  }
 }));

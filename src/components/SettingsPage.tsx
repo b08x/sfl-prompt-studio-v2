@@ -19,6 +19,8 @@ const SettingsPage: React.FC = () => {
     defaultModel,
     setDefaultProvider,
     setDefaultModel,
+    storageMode,
+    setStorageMode,
   } = useStore();
 
   const [expandedProvider, setExpandedProvider] = React.useState<AIProvider | null>(null);
@@ -97,7 +99,12 @@ const SettingsPage: React.FC = () => {
                 <input
                   type="password"
                   value={userApiKeys[provider]}
-                  onChange={(e) => setApiKey(provider, e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setApiKey(provider, value).catch(err => {
+                      console.error('Failed to save API key:', err);
+                    });
+                  }}
                   placeholder={`Enter ${providerDisplayNames[provider]} API key`}
                   className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
@@ -115,6 +122,87 @@ const SettingsPage: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Storage Mode Selection */}
+        <div className="mt-6 p-5 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/50 rounded-lg">
+          <div className="flex items-start space-x-3">
+            <div className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-gray-100 font-semibold mb-2">Security Mode</h3>
+              <p className="text-sm text-gray-300 mb-4">
+                Choose how your API keys are stored in the browser:
+              </p>
+
+              <div className="space-y-3">
+                <label className="flex items-start space-x-3 cursor-pointer p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors border border-gray-700">
+                  <input
+                    type="radio"
+                    name="storageMode"
+                    value="session"
+                    checked={storageMode === 'session'}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setStorageMode('session').catch(err => {
+                          console.error('Failed to set storage mode:', err);
+                        });
+                      }
+                    }}
+                    className="mt-1 w-4 h-4 text-blue-500 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-gray-200 font-medium">Session Only</span>
+                      <span className="px-2 py-0.5 text-xs bg-green-600/20 text-green-400 rounded-full border border-green-600/50">
+                        Recommended
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Keys stored in session memory only. More secure, but you'll need to re-enter keys when you close the browser tab.
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-start space-x-3 cursor-pointer p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors border border-gray-700">
+                  <input
+                    type="radio"
+                    name="storageMode"
+                    value="encrypted-persistent"
+                    checked={storageMode === 'encrypted-persistent'}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setStorageMode('encrypted-persistent').catch(err => {
+                          console.error('Failed to set storage mode:', err);
+                        });
+                      }
+                    }}
+                    className="mt-1 w-4 h-4 text-blue-500 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-gray-200 font-medium">Encrypted Persistent</span>
+                      <span className="px-2 py-0.5 text-xs bg-yellow-600/20 text-yellow-400 rounded-full border border-yellow-600/50">
+                        Convenience
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Keys encrypted and stored persistently. Keys remain across browser sessions, encrypted using device-specific characteristics.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="mt-3 p-3 bg-gray-900/50 border border-gray-700 rounded-lg">
+                <p className="text-xs text-gray-400">
+                  <span className="text-yellow-400">⚠️ Security Note:</span> No client-side storage is completely secure against determined attackers. For maximum security, use environment variables or avoid storing keys in the browser.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="mt-4 p-4 bg-gray-900 border border-gray-700 rounded-lg">
