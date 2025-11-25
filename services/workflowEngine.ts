@@ -1,5 +1,5 @@
 
-import { Task, DataStore, PromptSFL } from '../types';
+import { Task, DataStore, PromptSFL, Workflow } from '../types';
 import { geminiProvider } from './providers/GeminiProvider';
 
 // Helper to safely get nested properties
@@ -155,4 +155,43 @@ export const topologicalSort = (tasks: Task[]): { sortedTasks: Task[], feedback:
     
     if(feedback.some(f => f.includes('Cycle'))) return { sortedTasks: [], feedback };
     return { sortedTasks, feedback };
+};
+
+export const validateWorkflow = (workflow: Workflow): string[] => {
+    const warnings: string[] = [];
+    const consumedKeys = new Set<string>();
+
+    // Gather all consumed keys
+    workflow.tasks.forEach(task => {
+        task.inputKeys.forEach(key => {
+            // Remove optional suffix for matching
+            const cleanKey = key.endsWith('?') ? key.slice(0, -1) : key;
+            consumedKeys.add(cleanKey);
+        });
+
+        // DISPLAY_CHART consumes dataKey
+        if (task.type === 'DISPLAY_CHART' && task.dataKey) {
+             consumedKeys.add(task.dataKey);
+        }
+        
+        // Check staticValue for interpolations {{key}}
+        if (task.staticValue) {
+             const matches = task.staticValue.match(/\{\{\s*([\w\.]+)\s*\}\}/g);
+             if (matches) {
+                 matches.forEach((m: string) => {
+                     const key = m.replace(/\{\{\s*|\s*\}\}/g, '');
+                     consumedKeys.add(key);
+                 });
+             }
+        }
+    });
+
+    // Check for Dead Ends (Tasks whose output is never consumed)
+    workflow.tasks.forEach(task => {
+        if (!consumedKeys.has(task.outputKey)) {
+             warnings.push(`Potential Dead End: Output "${task.outputKey}" from task "${task.name}" is not used by any other task.`);
+        }
+    });
+
+    return warnings;
 };

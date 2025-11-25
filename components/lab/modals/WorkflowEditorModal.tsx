@@ -5,6 +5,7 @@ import ModalShell from '../../ModalShell';
 import PlusIcon from '../../icons/PlusIcon';
 import TrashIcon from '../../icons/TrashIcon';
 import LinkIcon from '../../icons/LinkIcon';
+import { validateWorkflow } from '../../../services/workflowEngine';
 
 interface WorkflowEditorModalProps {
     isOpen: boolean;
@@ -215,6 +216,11 @@ const WorkflowEditorModal: React.FC<WorkflowEditorModalProps> = ({ isOpen, onClo
     };
 
     const handleSubmit = () => {
+        const warnings = validateWorkflow(workflow);
+        if (warnings.length > 0) {
+            const message = "Workflow Validation Warnings:\n\n" + warnings.map(w => "• " + w).join('\n') + "\n\nDo you want to save anyway?";
+            if (!confirm(message)) return;
+        }
         onSave(workflow);
     };
     

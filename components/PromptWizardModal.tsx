@@ -1,13 +1,13 @@
 
-
 import React, { useState, useRef } from 'react';
 import { PromptSFL } from '../types';
-import { generateSFLFromGoal, regenerateSFLFromSuggestion } from '../services/sflService';
+import { generateSFLFromGoal, regenerateSFLFromSuggestion, syncPromptTextFromSFL } from '../services/sflService';
 import { INITIAL_PROMPT_SFL } from '../constants';
 import ModalShell from './ModalShell';
 import SparklesIcon from './icons/SparklesIcon';
 import PaperClipIcon from './icons/PaperClipIcon';
 import XCircleIcon from './icons/XCircleIcon';
+import ArrowPathIcon from './icons/ArrowPathIcon';
 
 interface PromptWizardModalProps {
     isOpen: boolean;
@@ -165,15 +165,15 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
         }
     };
 
-    const handleUpdateFromSFL = async () => {
+    const handleSyncText = async () => {
         setIsUpdating(true);
         setErrorMessage('');
         try {
-            const suggestion = "The SFL fields have been manually updated. Regenerate the 'promptText', 'title', 'exampleOutput', and 'notes' to be consistent with the updated SFL data. Preserve the core goal.";
-            const regeneratedData = await regenerateSFLFromSuggestion(formData, suggestion);
-            setFormData(prev => ({ ...prev, ...regeneratedData }));
+            // Decoupled Logic: Explicitly sync text from metadata using dedicated service
+            const syncedData = await syncPromptTextFromSFL(formData);
+            setFormData(prev => ({ ...prev, ...syncedData }));
         } catch (error: any) {
-            alert('Failed to update prompt: ' + (error.message || 'Unknown error'));
+            alert('Failed to sync prompt text: ' + (error.message || 'Unknown error'));
         } finally {
             setIsUpdating(false);
         }
@@ -364,13 +364,13 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
                             <button type="button" onClick={handleReset} className="px-4 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600">Start Over</button>
                             <button
                                 type="button"
-                                onClick={handleUpdateFromSFL}
+                                onClick={handleSyncText}
                                 disabled={isUpdating}
                                 className="flex items-center px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-md hover:bg-violet-700 disabled:bg-opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isUpdating && <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin mr-2"></div>}
-                                {!isUpdating && <SparklesIcon className="w-5 h-5 mr-2" />}
-                                {isUpdating ? 'Updating...' : 'Update from SFL'}
+                                {!isUpdating && <ArrowPathIcon className="w-5 h-5 mr-2" />}
+                                {isUpdating ? 'Syncing...' : 'Sync Text to Metadata'}
                             </button>
                             <button type="button" onClick={handleSave} className="px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600">Save Prompt</button>
                        </div>
