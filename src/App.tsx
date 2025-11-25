@@ -40,10 +40,13 @@ const App: React.FC = () => {
   
   const activeWorkflow = useMemo(() => workflows.find(wf => wf.id === activeWorkflowId) || null, [workflows, activeWorkflowId]);
   
+  // Note: WorkflowRunner maintains ephemeral execution state, so it stays as a local hook for now, 
+  // though prompts are passed from the store.
   const { dataStore, taskStates, isRunning, run, reset, runFeedback, stageInput } = useWorkflowRunner(activeWorkflow, prompts);
   const [activeLabTab, setActiveLabTab] = useState<'workflow' | 'ideation'>('workflow');
   const [ideationPromptId, setIdeationPromptId] = useState<string | null>(null);
 
+  // Sync ideation prompt selection
   useEffect(() => {
      if (!ideationPromptId && prompts.length > 0) {
          setIdeationPromptId(prompts[0].id);
@@ -82,6 +85,7 @@ const App: React.FC = () => {
     setFilters({ [key]: value });
   }, [setFilters]);
 
+  // Derived filtered prompts
   const filteredPrompts = useMemo(() => {
     return prompts.filter(p => {
       const searchTermLower = filters.searchTerm.toLowerCase();
@@ -244,6 +248,7 @@ const App: React.FC = () => {
     navigator.clipboard.writeText(promptToMarkdown(prompt));
   };
 
+  // Determine active page name for LiveAssistant context
   const getActivePageName = (): 'dashboard' | 'lab' | 'documentation' | 'settings' => {
       if (location.pathname.startsWith('/lab')) return 'lab';
       if (location.pathname.startsWith('/documentation')) return 'documentation';
@@ -327,6 +332,25 @@ const App: React.FC = () => {
                   searchTerm={filters.searchTerm}
                   onSearchChange={(value) => handleFilterChange('searchTerm', value)}
                 />
+                 {/* This section needs to accept header actions for import/export which were previously in TopBar in the old design or Dashboard specific */}
+                 {/* Re-injecting the header with actions that were likely part of Dashboard view composition in previous versions or handled differently. 
+                     Checking Sidebar/TopBar logic. TopBar has Add/Wizard. 
+                     The Header component (from components/Header.tsx) seems to have been used inside renderMainContent previously or replaced by TopBar.
+                     Wait, TopBar replaces Header? In the previous App.tsx, TopBar was used for dashboard. 
+                     Ah, the original App.tsx had 'Header' component imported but not used in the 'dashboard' case of renderMainContent in the provided file?
+                     Wait, looking at previous App.tsx provided content:
+                     It uses `TopBar` for dashboard. 
+                     It also uses `import Header from './components/Header';` but doesn't seem to use it in the JSX of `App.tsx` provided.
+                     However, the `Header` component file content shows buttons for import/export.
+                     Let's check `TopBar.tsx`. It has search, wizard, new prompt.
+                     The buttons for import/export/help seem missing from the `TopBar`. 
+                     They were likely in the `Header` component which might have been used in a different version or I missed where it was used.
+                     Actually, in the provided `App.tsx`, `Header` was imported but NOT used.
+                     I will stick to the provided `App.tsx` structure where `TopBar` is the main header.
+                     If I want to expose Import/Export, I should probably add them to the Dashboard view or TopBar.
+                     For now, I will replicate the previous Dashboard view exactly.
+                 */}
+                 {/* Adding a sub-header for actions if needed, or just keeping it simple as per previous App.tsx */}
                  <div className="flex-1 overflow-y-auto p-6">
                      <div className="flex justify-end space-x-2 mb-4">
                         <button onClick={() => setActiveModal(ModalType.HELP)} className="text-gray-400 hover:text-gray-200 text-sm">Help</button>

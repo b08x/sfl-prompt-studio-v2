@@ -12,6 +12,8 @@ import PaperClipIcon from './icons/PaperClipIcon';
 import XCircleIcon from './icons/XCircleIcon';
 import InformationCircleIcon from './icons/InformationCircleIcon';
 import WrenchScrewdriverIcon from './icons/WrenchScrewdriverIcon';
+import { useStore } from '../store/useStore';
+import { AIProvider } from '../types/ai';
 
 interface PromptFormModalProps {
   isOpen: boolean;
@@ -30,19 +32,20 @@ interface PromptFormModalProps {
 }
 
 const PromptFormModal: React.FC<PromptFormModalProps> = ({ isOpen, onClose, onSave, promptToEdit, appConstants, onAddConstant }) => {
+  const { userApiKeys } = useStore();
   const [formData, setFormData] = useState<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history' | 'sflAnalysis'>>(INITIAL_PROMPT_SFL);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use custom hook for AI logic
-  const { 
-    sflAnalysis, 
-    isAnalyzing, 
-    isFixing, 
-    regenState, 
-    setRegenState, 
-    handleRegeneratePrompt, 
-    handleAutoFix 
-  } = usePromptAI({ formData, setFormData, promptToEdit });
+  const {
+    sflAnalysis,
+    isAnalyzing,
+    isFixing,
+    regenState,
+    setRegenState,
+    handleRegeneratePrompt,
+    handleAutoFix
+  } = usePromptAI({ formData, setFormData, promptToEdit, apiKey: userApiKeys[AIProvider.Google] });
 
   useEffect(() => {
     if (promptToEdit) {

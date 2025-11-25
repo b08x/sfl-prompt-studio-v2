@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { Modality, FunctionDeclaration, Type } from '@google/genai';
 import type { SFLField, SFLTenor, SFLMode, PromptSFL, Workflow } from '../types';
 import { useGeminiLive } from '../hooks/useGeminiLive';
+import { useStore } from '../store/useStore';
+import { AIProvider } from '../types/ai';
 
 import XMarkIcon from './icons/XMarkIcon';
 import SparklesIcon from './icons/SparklesIcon';
@@ -60,11 +62,12 @@ interface LiveAssistantProps {
     activeWorkflow?: Workflow | null;
 }
 
-const LiveAssistant: React.FC<LiveAssistantProps> = ({ 
+const LiveAssistant: React.FC<LiveAssistantProps> = ({
     isOpen, onClose, activePage, labTab, activePrompt, onUpdatePrompt, activeWorkflow
 }) => {
-    // Use the secure key from process.env
-    const { status, transcript, error, connect, disconnect, setTranscript } = useGeminiLive({ apiKey: process.env.API_KEY });
+    const { userApiKeys } = useStore();
+    const apiKey = userApiKeys[AIProvider.Google];
+    const { status, transcript, error, connect, disconnect, setTranscript } = useGeminiLive({ apiKey });
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
     // BUG FIX: Maintain a ref to the active prompt.
@@ -177,6 +180,12 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
                     </button>
                 </header>
                 <main className="flex-1 p-4 overflow-y-auto space-y-4">
+                    {!apiKey && (
+                        <div className="p-4 bg-yellow-900/50 border border-yellow-700 text-yellow-300 text-sm rounded-lg">
+                            <p className="font-semibold mb-1">API Key Required</p>
+                            <p>Please configure your Google API key in Settings to use the Live Assistant.</p>
+                        </div>
+                    )}
                     {transcript.map((entry, index) => {
                         if (entry.speaker === 'system') {
                             return <p key={index} className="text-center text-xs text-fuchsia-400 italic py-1">-- {entry.text} --</p>;
@@ -202,7 +211,7 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
                 <footer className="p-4 border-t border-gray-700 bg-gray-900 flex-shrink-0 flex items-center justify-center">
                      <button
                         onClick={isConversing ? disconnect : startConversation}
-                        disabled={status === 'connecting'}
+                        disabled={status === 'connecting' || !apiKey}
                         className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors text-white ${
                             isConversing ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'
                         } disabled:bg-gray-600 disabled:cursor-not-allowed`}

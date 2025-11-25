@@ -1,3 +1,4 @@
+
 import { PromptSFL, Workflow } from '../types';
 
 const INDEX_KEY = 'sfl_prompt_index';

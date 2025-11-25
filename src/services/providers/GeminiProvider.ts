@@ -1,18 +1,21 @@
+
 import { GoogleGenAI, GenerateContentResponse, Part, LiveConnectConfig } from "@google/genai";
 import { AIProvider, AIConfig, LiveSession } from "../aiTypes";
 import { parseJsonFromText } from "../../utils/jsonUtils";
 
 export class GeminiProvider implements AIProvider {
-    private ai: GoogleGenAI;
-
-    constructor() {
-        // Guideline: The API key must be obtained exclusively from the environment variable process.env.API_KEY.
-        this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    private getAiClient(config?: AIConfig): GoogleGenAI {
+        const apiKey = config?.apiKey;
+        if (!apiKey) {
+            throw new Error("API key is required. Please configure your API key in Settings.");
+        }
+        return new GoogleGenAI({ apiKey });
     }
 
     async generateText(prompt: string, config?: AIConfig): Promise<string> {
         try {
-            const response = await this.ai.models.generateContent({
+            const ai = this.getAiClient(config);
+            const response = await ai.models.generateContent({
                 model: config?.model || 'gemini-2.5-flash',
                 contents: prompt,
                 config: {
@@ -30,7 +33,8 @@ export class GeminiProvider implements AIProvider {
 
     async generateJSON<T>(prompt: string, schema?: any, config?: AIConfig): Promise<T> {
         try {
-            const response = await this.ai.models.generateContent({
+            const ai = this.getAiClient(config);
+            const response = await ai.models.generateContent({
                 model: config?.model || 'gemini-2.5-flash',
                 contents: prompt,
                 config: {
@@ -48,7 +52,8 @@ export class GeminiProvider implements AIProvider {
 
     async generateImageAnalysis(prompt: string, imagePart: Part, config?: AIConfig): Promise<string> {
         try {
-            const response = await this.ai.models.generateContent({
+            const ai = this.getAiClient(config);
+            const response = await ai.models.generateContent({
                 model: config?.model || 'gemini-2.5-flash',
                 contents: { parts: [{ text: prompt }, imagePart] },
                 config: {
@@ -64,7 +69,8 @@ export class GeminiProvider implements AIProvider {
 
     async generateGroundedContent(prompt: string, config?: AIConfig): Promise<{ text: string; sources: any[] }> {
         try {
-            const response = await this.ai.models.generateContent({
+            const ai = this.getAiClient(config);
+            const response = await ai.models.generateContent({
                 model: config?.model || 'gemini-2.5-flash',
                 contents: prompt,
                 config: {
@@ -73,7 +79,7 @@ export class GeminiProvider implements AIProvider {
                     temperature: config?.temperature,
                 }
             });
-            
+
             const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
             const sources = groundingChunks
                 .map((chunk: any) => chunk.web)
@@ -88,8 +94,12 @@ export class GeminiProvider implements AIProvider {
         }
     }
 
-    async connectLive(model: string, config: LiveConnectConfig, callbacks: any): Promise<LiveSession> {
-        return this.ai.live.connect({ model, config, callbacks });
+    async connectLive(model: string, config: LiveConnectConfig, callbacks: any, apiKey?: string): Promise<LiveSession> {
+        if (!apiKey) {
+            throw new Error("API key is required for live connection. Please configure your API key in Settings.");
+        }
+        const ai = new GoogleGenAI({ apiKey });
+        return ai.live.connect({ model, config, callbacks });
     }
 }
 
