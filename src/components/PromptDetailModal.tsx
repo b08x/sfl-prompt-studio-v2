@@ -1,6 +1,8 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { PromptSFL, PromptVersion } from '../types';
+import { AIProvider } from '../types/ai';
+import { useStore } from '../store/useStore';
 import ModalShell from './ModalShell';
 import SparklesIcon from './icons/SparklesIcon';
 import PencilIcon from './icons/PencilIcon';
@@ -17,7 +19,12 @@ interface PromptDetailModalProps {
   prompt: PromptSFL | null;
   onEdit: (prompt: PromptSFL) => void;
   onDelete: (promptId: string) => void;
-  onTestWithGemini: (prompt: PromptSFL, variables: Record<string, string>) => void;
+  onTestWithGemini: (
+    prompt: PromptSFL,
+    variables: Record<string, string>,
+    provider: AIProvider,
+    model: string
+  ) => void;
   onExportPrompt: (prompt: PromptSFL) => void;
   onExportPromptMarkdown: (prompt: PromptSFL) => void;
   onRevert: (prompt: PromptSFL, version: PromptVersion) => void;
@@ -56,10 +63,21 @@ const DetailItem: React.FC<{ label: string; value?: any; isCode?: boolean; isEmp
 };
 
 const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, prompt, onEdit, onDelete, onTestWithGemini, onExportPrompt, onExportPromptMarkdown, onRevert }) => {
+  const { availableModels, defaultProvider, defaultModel } = useStore();
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
   const [isDocVisible, setDocVisible] = useState(false);
   const [docCopied, setDocCopied] = useState(false);
   const [viewedVersion, setViewedVersion] = useState<'latest' | number>('latest');
+  const [testProvider, setTestProvider] = useState<AIProvider>(defaultProvider);
+  const [testModel, setTestModel] = useState<string>(defaultModel);
+
+  const providerDisplayNames: Record<AIProvider, string> = {
+    [AIProvider.Google]: 'Google (Gemini)',
+    [AIProvider.OpenAI]: 'OpenAI',
+    [AIProvider.OpenRouter]: 'OpenRouter',
+    [AIProvider.Anthropic]: 'Anthropic (Claude)',
+    [AIProvider.Mistral]: 'Mistral',
+  };
 
   const allVersionsForDropdown = useMemo(() => {
     if (!prompt) return [];
@@ -220,6 +238,58 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
             <p className="text-xs text-gray-500">Version Saved: {new Date(displayedData.updatedAt).toLocaleString()}</p>
         </div>
 
+        {/* Test Configuration Section */}
+        <section className="space-y-4 border border-gray-700 p-4 rounded-lg bg-gray-900/50 mt-4">
+          <h3 className="text-md font-semibold text-gray-50 mb-2 border-b pb-1 border-gray-700">Test Configuration</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Provider</label>
+              <select
+                value={testProvider}
+                onChange={(e) => {
+                  const newProvider = e.target.value as AIProvider;
+                  setTestProvider(newProvider);
+                  // Reset model to first available for this provider if current model is not available
+                  const models = availableModels[newProvider];
+                  if (models.length > 0 && !models.find(m => m.id === testModel)) {
+                    setTestModel(models[0].id);
+                  }
+                }}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-50"
+              >
+                {Object.values(AIProvider).map((provider) => (
+                  <option key={provider} value={provider}>
+                    {providerDisplayNames[provider]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Model</label>
+              <select
+                value={testModel}
+                onChange={(e) => setTestModel(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-50"
+              >
+                {availableModels[testProvider].length > 0 ? (
+                  availableModels[testProvider].map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name} {model.supportsVision ? '🖼️' : ''}
+                    </option>
+                  ))
+                ) : (
+                  <option value={testModel}>{testModel}</option>
+                )}
+              </select>
+              {availableModels[testProvider].length === 0 && (
+                <p className="text-xs text-yellow-500 mt-1">
+                  No models discovered. Verify API key in Settings.
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+
         {variables.length > 0 && (
           <section className="space-y-4 border border-gray-700 p-4 rounded-lg bg-gray-900/50">
             <h3 className="text-md font-semibold text-gray-50 mb-2 border-b pb-1 border-gray-700">Prompt Variables</h3>
@@ -269,9 +339,13 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
           <button onClick={() => onExportPromptMarkdown(displayedData as PromptSFL)} className="px-3 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 flex items-center">
             <DocumentTextIcon className="w-5 h-5 mr-2"/> Export MD
           </button>
-          <button onClick={() => onTestWithGemini(prompt, variableValues)} disabled={prompt.isTesting || viewedVersion !== 'latest'} className="px-3 py-2 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600 disabled:bg-opacity-50 disabled:cursor-not-allowed flex items-center">
+          <button
+            onClick={() => onTestWithGemini(prompt, variableValues, testProvider, testModel)}
+            disabled={prompt.isTesting || viewedVersion !== 'latest'}
+            className="px-3 py-2 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600 disabled:bg-opacity-50 disabled:cursor-not-allowed flex items-center"
+          >
             <SparklesIcon className="w-5 h-5 mr-2"/>
-            {prompt.isTesting ? 'Testing...' : 'Test with Gemini'}
+            {prompt.isTesting ? 'Testing...' : `Test with ${providerDisplayNames[testProvider]}`}
           </button>
           <button onClick={() => { onEdit(prompt); onClose(); }} disabled={viewedVersion !== 'latest'} className="px-3 py-2 text-sm font-medium text-gray-200 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
            <PencilIcon className="w-5 h-5 mr-2"/> Edit

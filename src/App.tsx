@@ -128,15 +128,20 @@ const App: React.FC = () => {
     }).sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [prompts, filters]);
 
-  const handleTestWithGemini = async (promptToTest: PromptSFL, variables: Record<string, string>) => {
-    // Get Google API key from store
-    const googleApiKey = userApiKeys[AIProvider.Google];
+  const handleTestWithGemini = async (
+    promptToTest: PromptSFL,
+    variables: Record<string, string>,
+    provider: AIProvider,
+    model: string
+  ) => {
+    // Get API key for the selected provider
+    const apiKey = userApiKeys[provider];
 
-    if (!googleApiKey || googleApiKey.trim() === '') {
+    if (!apiKey || apiKey.trim() === '') {
       updatePrompt({
         ...promptToTest,
         isTesting: false,
-        geminiTestError: 'Please configure your Google API key in Settings before testing prompts.',
+        geminiTestError: `Please configure your ${provider} API key in Settings before testing prompts.`,
         geminiResponse: undefined
       });
       return;
@@ -151,7 +156,7 @@ const App: React.FC = () => {
     });
 
     try {
-      const responseText = await testPrompt(finalPromptText, googleApiKey);
+      const responseText = await testPrompt(finalPromptText, apiKey, provider, model);
       updatePrompt({ ...promptToTest, isTesting: false, geminiResponse: responseText, geminiTestError: undefined });
     } catch (error: any) {
       updatePrompt({ ...promptToTest, isTesting: false, geminiTestError: error.message, geminiResponse: undefined });

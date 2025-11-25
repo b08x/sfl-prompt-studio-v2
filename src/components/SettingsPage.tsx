@@ -14,7 +14,14 @@ const SettingsPage: React.FC = () => {
     validateProviderKey,
     globalModelParams,
     setGlobalModelParams,
+    availableModels,
+    defaultProvider,
+    defaultModel,
+    setDefaultProvider,
+    setDefaultModel,
   } = useStore();
+
+  const [expandedProvider, setExpandedProvider] = React.useState<AIProvider | null>(null);
 
   const providerDisplayNames: Record<AIProvider, string> = {
     [AIProvider.Google]: 'Google (Gemini)',
@@ -121,6 +128,145 @@ const SettingsPage: React.FC = () => {
             <li>• <code className="text-blue-400">VITE_ANTHROPIC_API_KEY</code></li>
             <li>• <code className="text-blue-400">VITE_MISTRAL_API_KEY</code></li>
           </ul>
+        </div>
+      </section>
+
+      {/* Default Provider & Model Section */}
+      <section className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+        <div className="flex items-center space-x-2 mb-6">
+          <div className="w-6 h-6 text-blue-400">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-50">Default Provider & Model</h2>
+        </div>
+
+        <div className="space-y-4">
+          {/* Provider Selection */}
+          <div className="space-y-2">
+            <label className="text-gray-200 font-medium">Default Provider</label>
+            <select
+              value={defaultProvider}
+              onChange={(e) => setDefaultProvider(e.target.value as AIProvider)}
+              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Object.values(AIProvider).map((provider) => (
+                <option key={provider} value={provider}>
+                  {providerDisplayNames[provider]}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500">
+              This provider will be used by default for new tasks and prompts.
+            </p>
+          </div>
+
+          {/* Model Selection */}
+          <div className="space-y-2">
+            <label className="text-gray-200 font-medium">Default Model</label>
+            <select
+              value={defaultModel}
+              onChange={(e) => setDefaultModel(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {availableModels[defaultProvider].length > 0 ? (
+                availableModels[defaultProvider].map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} {model.supportsVision ? '🖼️' : ''}
+                  </option>
+                ))
+              ) : (
+                <option value={defaultModel}>{defaultModel}</option>
+              )}
+            </select>
+            <p className="text-xs text-gray-500">
+              This model will be used by default for the selected provider.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Available Models Section */}
+      <section className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+        <div className="flex items-center space-x-2 mb-6">
+          <div className="w-6 h-6 text-blue-400">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-50">Available Models</h2>
+        </div>
+
+        <div className="space-y-3">
+          {Object.values(AIProvider).map((provider) => {
+            const models = availableModels[provider];
+            const isExpanded = expandedProvider === provider;
+            const hasModels = models.length > 0;
+
+            return (
+              <div key={provider} className="bg-gray-900 rounded-lg border border-gray-700">
+                <button
+                  onClick={() => setExpandedProvider(isExpanded ? null : provider)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-gray-800 transition-colors"
+                  disabled={!hasModels}
+                >
+                  <div className="flex items-center space-x-3">
+                    <span className="text-gray-200 font-medium">
+                      {providerDisplayNames[provider]}
+                    </span>
+                    <span className="text-gray-400 text-sm">
+                      ({hasModels ? `${models.length} models` : 'No models available'})
+                    </span>
+                  </div>
+                  {hasModels && (
+                    <svg
+                      className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  )}
+                </button>
+
+                {isExpanded && hasModels && (
+                  <div className="border-t border-gray-700 p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {models.map((model) => (
+                        <div
+                          key={model.id}
+                          className="bg-gray-800 rounded-lg p-3 border border-gray-600"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h4 className="text-gray-200 font-medium text-sm">{model.name}</h4>
+                              <p className="text-gray-400 text-xs mt-1 font-mono">{model.id}</p>
+                            </div>
+                            {model.supportsVision && (
+                              <span className="text-lg" title="Supports Vision">🖼️</span>
+                            )}
+                          </div>
+                          <div className="mt-2 flex items-center space-x-4 text-xs text-gray-500">
+                            <span>Context: {(model.contextWindow / 1000).toFixed(0)}K</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 p-4 bg-gray-900 border border-gray-700 rounded-lg">
+          <p className="text-sm text-gray-400">
+            <strong className="text-gray-300">Note:</strong> Models are discovered automatically when you validate an API key.
+            Click "Verify" above to refresh the available models for each provider.
+          </p>
         </div>
       </section>
 

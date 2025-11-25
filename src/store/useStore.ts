@@ -36,6 +36,8 @@ interface StoreState {
   apiKeyValidation: Record<AIProvider, ApiKeyStatus>;
   availableModels: Record<AIProvider, AIModelConfig[]>;
   globalModelParams: GlobalModelParams;
+  defaultProvider: AIProvider;
+  defaultModel: string;
 
   // UI State
   activeModal: ModalType;
@@ -49,24 +51,26 @@ interface StoreState {
   updatePrompt: (prompt: PromptSFL) => void;
   deletePrompt: (id: string) => void;
   importPrompts: (newPrompts: PromptSFL[]) => void;
-  
+
   // Workflow Actions
   saveWorkflow: (workflow: Workflow) => void;
   deleteWorkflow: (id: string) => void;
   saveCustomWorkflows: (workflows: Workflow[]) => void;
-  
+
   // AI Configuration Actions
   setApiKey: (provider: AIProvider, key: string) => void;
   validateProviderKey: (provider: AIProvider) => Promise<void>;
   setGlobalModelParams: (params: Partial<GlobalModelParams>) => void;
+  setDefaultProvider: (provider: AIProvider) => void;
+  setDefaultModel: (model: string) => void;
 
   setFilters: (filters: Partial<Filters>) => void;
   resetFilters: () => void;
-  
+
   setActiveModal: (modal: ModalType) => void;
   setSelectedPrompt: (prompt: PromptSFL | null) => void;
   toggleSidebar: () => void;
-  
+
   addAppConstant: (key: keyof AppConstants, value: string) => void;
 }
 
@@ -111,6 +115,8 @@ export const useStore = create<StoreState>((set, get) => ({
     topK: 40,
     topP: 0.9,
   },
+  defaultProvider: AIProvider.Google,
+  defaultModel: 'gemini-2.5-flash',
 
   activeModal: ModalType.NONE,
   selectedPrompt: null,
@@ -185,6 +191,20 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     } catch (e) {
       console.error("Failed to load global model params", e);
+    }
+
+    // Load default provider and model
+    try {
+      const storedDefaults = localStorage.getItem('sfl_default_provider_model');
+      if (storedDefaults) {
+        const parsedDefaults = JSON.parse(storedDefaults);
+        set(state => ({
+          defaultProvider: parsedDefaults.provider || state.defaultProvider,
+          defaultModel: parsedDefaults.model || state.defaultModel
+        }));
+      }
+    } catch (e) {
+      console.error("Failed to load default provider/model", e);
     }
 
     // Auto-validate all found API keys
@@ -361,6 +381,30 @@ export const useStore = create<StoreState>((set, get) => ({
         console.error("Failed to save global model params", e);
       }
       return { globalModelParams: newParams };
+    });
+  },
+
+  setDefaultProvider: (provider) => {
+    set(state => {
+      const defaults = { provider, model: state.defaultModel };
+      try {
+        localStorage.setItem('sfl_default_provider_model', JSON.stringify(defaults));
+      } catch (e) {
+        console.error("Failed to save default provider", e);
+      }
+      return { defaultProvider: provider };
+    });
+  },
+
+  setDefaultModel: (model) => {
+    set(state => {
+      const defaults = { provider: state.defaultProvider, model };
+      try {
+        localStorage.setItem('sfl_default_provider_model', JSON.stringify(defaults));
+      } catch (e) {
+        console.error("Failed to save default model", e);
+      }
+      return { defaultModel: model };
     });
   },
 
