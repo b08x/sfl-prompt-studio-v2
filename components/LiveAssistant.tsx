@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GoogleGenAI, Modality, FunctionDeclaration, Type, LiveServerMessage } from '@google/genai';
 import { encode, decode, decodeAudioData } from '../utils/audioUtils';
@@ -12,9 +11,10 @@ import StopIcon from './icons/StopIcon';
 
 type ConversationStatus = 'idle' | 'connecting' | 'active' | 'error';
 
+// 1. Explicitly Define the Tool
 const updatePromptComponentsFunctionDeclaration: FunctionDeclaration = {
     name: 'updatePromptComponents',
-    description: "Updates one or more components of the SFL prompt (sflField, sflTenor, or sflMode). Only include fields that need changing.",
+    description: "Updates one or more components of the SFL prompt (sflField, sflTenor, or sflMode) and the promptText. Only include fields that need changing.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -88,7 +88,7 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
         if (isIdeationMode) {
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { id, createdAt, updatedAt, version, history, geminiResponse, geminiTestError, isTesting, ...promptForContext } = activePrompt;
-            return `You are in 'Ideation Mode'. When the user asks to change the prompt (e.g., 'change the tone to be more formal'), use the 'updatePromptComponents' tool. You can ask clarifying questions. Here is the current prompt you are refining:\n\n${JSON.stringify(promptForContext, null, 2)}`;
+            return `You are in 'Ideation Mode'. When the user asks to change the prompt (e.g., 'change the tone to be more formal'), YOU MUST call the 'updatePromptComponents' tool. Do not just describe the change, execute it. You can ask clarifying questions if needed. Here is the current prompt you are refining:\n\n${JSON.stringify(promptForContext, null, 2)}`;
         }
         if (activePage === 'lab' && activeWorkflow) {
             return `${base} The user is on the Workflow Canvas, looking at the "${activeWorkflow.name}" workflow. Help them understand its tasks and purpose.`;
@@ -137,18 +137,21 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
         setStatus('idle');
     }, [cleanup]);
 
-    const handleUpdatePromptFromTool = useCallback((updates: {
+    // 2. Client-Side Tool Execution Handler
+    const handleUpdatePromptFromTool = useCallback((args: {
         sflField?: Partial<SFLField>;
         sflTenor?: Partial<SFLTenor>;
         sflMode?: Partial<SFLMode>;
     }) => {
         if (!activePrompt || !onUpdatePrompt) return;
         
+        console.log("Executing Tool: updatePromptComponents", args);
+        
         const updatedPrompt = {
             ...activePrompt,
-            sflField: { ...activePrompt.sflField, ...(updates.sflField || {}) },
-            sflTenor: { ...activePrompt.sflTenor, ...(updates.sflTenor || {}) },
-            sflMode: { ...activePrompt.sflMode, ...(updates.sflMode || {}) },
+            sflField: { ...activePrompt.sflField, ...(args.sflField || {}) },
+            sflTenor: { ...activePrompt.sflTenor, ...(args.sflTenor || {}) },
+            sflMode: { ...activePrompt.sflMode, ...(args.sflMode || {}) },
         };
         onUpdatePrompt(updatedPrompt);
 
@@ -191,16 +194,26 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
                         scriptProcessor.connect(inputAudioContextRef.current!.destination);
                     },
                     onmessage: async (message: LiveServerMessage) => {
+                        // 3. Catch Tool Calls
                         if (message.toolCall) {
                             const functionResponses = [];
                             for (const fc of message.toolCall.functionCalls) {
                                 if (fc.name === 'updatePromptComponents' && isIdeationMode) {
+                                    // Execute the logic locally
                                     handleUpdatePromptFromTool(fc.args);
+                                    
                                     const updatedSections = Object.keys(fc.args).join(', ');
-                                    setTranscript(prev => [...prev, { speaker: 'system', text: `Updated ${updatedSections}`, isFinal: true }]);
-                                    functionResponses.push({ id: fc.id, name: fc.name, response: { result: "OK, the prompt has been updated." } });
+                                    setTranscript(prev => [...prev, { speaker: 'system', text: `Tool Executed: Updated ${updatedSections}`, isFinal: true }]);
+                                    
+                                    // Provide the result back to the model
+                                    functionResponses.push({ 
+                                        id: fc.id, 
+                                        name: fc.name, 
+                                        response: { result: "Success: The prompt components have been updated in the UI." } 
+                                    });
                                 }
                             }
+                            // Send response back to model
                             if (functionResponses.length > 0) {
                                 sessionPromise.then((session) => session.sendToolResponse({ functionResponses }));
                             }

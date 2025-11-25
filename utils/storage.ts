@@ -1,7 +1,8 @@
-import { PromptSFL } from '../types';
+import { PromptSFL, Workflow } from '../types';
 
 const INDEX_KEY = 'sfl_prompt_index';
 const PROMPT_PREFIX = 'sfl_prompt_';
+const WORKFLOWS_KEY = 'sfl-custom-workflows';
 
 export const storage = {
   getPromptIds: (): string[] => {
@@ -52,5 +53,19 @@ export const storage = {
     }
     
     return prompts.sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  },
+
+  // Workflow Storage (Simple Key for now as workflows are generally fewer/smaller than prompts history)
+  getCustomWorkflows: (): Workflow[] => {
+      try {
+          const data = localStorage.getItem(WORKFLOWS_KEY);
+          return data ? JSON.parse(data) : [];
+      } catch {
+          return [];
+      }
+  },
+
+  saveCustomWorkflows: (workflows: Workflow[]) => {
+      localStorage.setItem(WORKFLOWS_KEY, JSON.stringify(workflows));
   }
 };

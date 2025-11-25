@@ -1,5 +1,4 @@
-
-import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { PromptSFL, Workflow } from '../types';
 
 // Helper function to get a configured AI instance, ensuring API key exists.
@@ -11,34 +10,27 @@ const getAiInstance = () => {
     return new GoogleGenAI({ apiKey });
 };
 
+/**
+ * @deprecated Use Gemini's responseSchema instead.
+ */
 export const parseJsonFromText = (text: string) => {
   let jsonStr = text.trim();
-  
-  // This regex finds the first JSON code block anywhere in the text.
-  // It allows for optional language identifiers like 'json', 'javascript' etc.
   const fenceMatch = jsonStr.match(/```(?:\w+)?\s*([\s\S]*?)\s*```/s);
-
   if (fenceMatch && fenceMatch[1]) {
     jsonStr = fenceMatch[1].trim();
   } else {
-    // If no fences, find the first '{' or '[' and the last '}' or ']'
-    // to trim off any leading/trailing text from the model.
     const firstBracket = jsonStr.indexOf('[');
     const firstBrace = jsonStr.indexOf('{');
-    
     let startIndex = -1;
-
     if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
       startIndex = firstBracket;
     } else if (firstBrace !== -1) {
       startIndex = firstBrace;
     }
-    
     if (startIndex > -1) {
         const lastBracket = jsonStr.lastIndexOf(']');
         const lastBrace = jsonStr.lastIndexOf('}');
         const endIndex = jsonStr[startIndex] === '[' ? lastBracket : lastBrace;
-        
         if (endIndex > startIndex) {
             jsonStr = jsonStr.substring(startIndex, endIndex + 1);
         } else {
@@ -46,17 +38,13 @@ export const parseJsonFromText = (text: string) => {
         }
     }
   }
-  
-  // Attempt to fix common invalid JSON from LLMs. This is a defensive measure.
-  // The primary fix should always be improving the prompt.
-  jsonStr = jsonStr.replace(/\\\\n/g, '\\n'); // Fix over-escaped newlines
-  jsonStr = jsonStr.replace(/\\\\"/g, '\\"'); // Fix over-escaped quotes
-  jsonStr = jsonStr.replace(/:(\s*)undefined\b/g, ':$1null'); // Replace ": undefined" with ": null"
-  jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1'); // Remove trailing commas from objects and arrays
+  jsonStr = jsonStr.replace(/\\\\n/g, '\\n');
+  jsonStr = jsonStr.replace(/\\\\"/g, '\\"');
+  jsonStr = jsonStr.replace(/:(\s*)undefined\b/g, ':$1null');
+  jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
 
   try {
     const data = JSON.parse(jsonStr);
-    // If sourceDocument became null, remove it so it becomes undefined in JS.
     if (data.sourceDocument === null) {
       delete data.sourceDocument;
     }
@@ -75,9 +63,7 @@ export const testPromptWithGemini = async (promptText: string): Promise<string> 
       model: 'gemini-2.5-flash',
       contents: promptText,
     });
-    
-    return response.text;
-
+    return response.text || '';
   } catch (error: unknown) {
     console.error("Error calling Gemini API:", error);
     if (error instanceof Error) {
@@ -87,23 +73,54 @@ export const testPromptWithGemini = async (promptText: string): Promise<string> 
   }
 };
 
+const sflPromptSchema = {
+    type: Type.OBJECT,
+    properties: {
+        title: { type: Type.STRING },
+        promptText: { type: Type.STRING },
+        sflField: {
+            type: Type.OBJECT,
+            properties: {
+                topic: { type: Type.STRING },
+                taskType: { type: Type.STRING },
+                domainSpecifics: { type: Type.STRING },
+                keywords: { type: Type.STRING },
+            },
+            required: ['topic', 'taskType', 'domainSpecifics', 'keywords']
+        },
+        sflTenor: {
+            type: Type.OBJECT,
+            properties: {
+                aiPersona: { type: Type.STRING },
+                targetAudience: { type: Type.ARRAY, items: { type: Type.STRING } },
+                desiredTone: { type: Type.STRING },
+                interpersonalStance: { type: Type.STRING },
+            },
+            required: ['aiPersona', 'targetAudience', 'desiredTone', 'interpersonalStance']
+        },
+        sflMode: {
+            type: Type.OBJECT,
+            properties: {
+                outputFormat: { type: Type.STRING },
+                rhetoricalStructure: { type: Type.STRING },
+                lengthConstraint: { type: Type.STRING },
+                textualDirectives: { type: Type.STRING },
+            },
+            required: ['outputFormat', 'rhetoricalStructure', 'lengthConstraint', 'textualDirectives']
+        },
+        exampleOutput: { type: Type.STRING },
+        notes: { type: Type.STRING },
+    },
+    required: ['title', 'promptText', 'sflField', 'sflTenor', 'sflMode', 'exampleOutput', 'notes']
+};
+
+
 export const generateSFLFromGoal = async (goal: string, sourceDocContent?: string): Promise<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>> => {
     const ai = getAiInstance();
     
     const systemInstruction = `You are an expert in Systemic Functional Linguistics (SFL) and AI prompt engineering. Your task is to analyze a user's goal and structure it into a detailed SFL-based prompt.
-    If a source document is provided for stylistic reference, you MUST analyze its style (e.g., tone, complexity, vocabulary, sentence structure) and incorporate those stylistic qualities into the SFL fields and the final promptText. For example, update the 'desiredTone', 'aiPersona', and 'textualDirectives' to match the source. The generated 'promptText' should be a complete, standalone prompt that implicitly carries the desired style.
-    The output MUST be a single, valid JSON object. Do not include any text, notes, or explanations outside of the JSON object.
-    All string values in the JSON, especially for multi-line fields like "promptText", must be properly formatted with escaped newlines (e.g., using \\n).
-    The JSON object should have the following structure: { "title": string, "promptText": string, "sflField": { "topic": string, "taskType": string, "domainSpecifics": string, "keywords": string }, "sflTenor": { "aiPersona": string, "targetAudience": string[], "desiredTone": string, "interpersonalStance": string }, "sflMode": { "outputFormat": string, "rhetoricalStructure": string, "lengthConstraint": string, "textualDirectives": string }, "exampleOutput": string, "notes": string }.
-    
-    - title: Create a concise, descriptive title based on the user's goal.
-    - promptText: Synthesize all the SFL elements into a complete, well-formed prompt that can be sent directly to an AI.
-    - sflField (What is happening?): Analyze the subject matter.
-    - sflTenor (Who is taking part?): Define the roles and relationships. The "targetAudience" field must be an array of strings, even if only one audience is identified.
-    - sflMode (How is it being communicated?): Specify the format and structure of the output.
-    - exampleOutput: Provide a brief but illustrative example of the expected output.
-    - notes: Add any relevant notes or suggestions for the user.
-    - All fields in the JSON must be filled with a string (or array of strings for targetAudience). If no information can be derived for a field, provide an empty string "" or a sensible default.
+    If a source document is provided, analyze its style and incorporate it.
+    Adhere to the SFL framework: Field (Subject), Tenor (Participants), Mode (Format).
     `;
     
     const userContent = sourceDocContent
@@ -117,17 +134,16 @@ export const generateSFLFromGoal = async (goal: string, sourceDocContent?: strin
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
+                responseSchema: sflPromptSchema,
             },
         });
 
         const text = response.text;
-        const jsonData = parseJsonFromText(text);
+        const jsonData = JSON.parse(text || '{}');
         
+        // Ensure array type
         if (jsonData.sflTenor && typeof jsonData.sflTenor.targetAudience === 'string') {
             jsonData.sflTenor.targetAudience = [jsonData.sflTenor.targetAudience];
-        }
-        if (jsonData.sflTenor && !jsonData.sflTenor.targetAudience) {
-            jsonData.sflTenor.targetAudience = [];
         }
 
         return jsonData as Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>;
@@ -147,22 +163,8 @@ export const regenerateSFLFromSuggestion = async (
 ): Promise<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>> => {
     const ai = getAiInstance();
     
-    const systemInstruction = `You are an expert in Systemic Functional Linguistics (SFL) and AI prompt engineering. Your task is to revise an existing SFL prompt based on a user's suggestion.
-    The user will provide a JSON object representing the current prompt and a text string with their requested change.
-    If a source document is provided (as part of the prompt object or separately), its style should be analyzed and take precedence, influencing the revision.
-    You MUST return a single, valid JSON object that represents the *revised* prompt. Do not include any text, notes, or explanations outside of the JSON object.
-    All string values in the JSON, especially for multi-line fields like "promptText", must be properly formatted with escaped newlines (e.g., using \\n).
-    The output JSON object must have the exact same structure as the input, containing all the original fields, but with values updated according to the suggestion and stylistic source.
-    The structure is: { "title": string, "promptText": string, "sflField": { "topic": string, "taskType": string, "domainSpecifics": string, "keywords": string }, "sflTenor": { "aiPersona": string, "targetAudience": string[], "desiredTone": string, "interpersonalStance": string }, "sflMode": { "outputFormat": string, "rhetoricalStructure": string, "lengthConstraint": string, "textualDirectives": string }, "exampleOutput": string, "notes": string, "sourceDocument"?: { "name": string, "content": string } }.
-    
-    - Critically analyze the user's suggestion and apply it to all relevant fields in the prompt.
-    - If a 'sourceDocument' is present, ensure its style is reflected in the revised SFL fields and 'promptText'.
-    - The 'promptText' field is the most important; it must be re-written to reflect the change.
-    - Other SFL fields (Field, Tenor, Mode) should be updated logically to align with the new 'promptText' and the user's suggestion.
-    - Even update the 'title', 'exampleOutput', and 'notes' if the suggestion implies it.
-    - Ensure 'targetAudience' remains an array of strings.
-    - If a 'sourceDocument' was present in the input, preserve it in the output. If it was not present, you MUST OMIT the 'sourceDocument' key from the output JSON object entirely.
-    - All fields must be filled. If no information can be derived for a field, provide an empty string "" or a sensible default, but try to keep existing data if it's still relevant.
+    const systemInstruction = `You are an expert in SFL and prompt engineering. Revise the existing SFL prompt based on the user's suggestion.
+    Update the prompt fields logically to reflect the requested changes while maintaining a coherent SFL structure.
     `;
     
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -174,10 +176,7 @@ export const regenerateSFLFromSuggestion = async (
     
     ${sourceDocument ? `This prompt is associated with the following source document for stylistic reference:\n---\n${sourceDocument.content}\n---\n` : ''}
 
-    Here is my suggestion for how to change it:
-    "${suggestion}"
-
-    Now, provide the complete, revised JSON object.
+    Suggestion: "${suggestion}"
     `;
 
     try {
@@ -187,20 +186,17 @@ export const regenerateSFLFromSuggestion = async (
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
+                responseSchema: sflPromptSchema,
             },
         });
 
         const text = response.text;
-        const jsonData = parseJsonFromText(text);
+        const jsonData = JSON.parse(text || '{}');
         
         if (jsonData.sflTenor && typeof jsonData.sflTenor.targetAudience === 'string') {
             jsonData.sflTenor.targetAudience = [jsonData.sflTenor.targetAudience];
         }
-        if (jsonData.sflTenor && !jsonData.sflTenor.targetAudience) {
-            jsonData.sflTenor.targetAudience = [];
-        }
         
-        // Preserve the source document from the original prompt
         jsonData.sourceDocument = sourceDocument;
 
         return jsonData as Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>;
@@ -214,55 +210,69 @@ export const regenerateSFLFromSuggestion = async (
     }
 };
 
+const workflowSchema = {
+    type: Type.OBJECT,
+    properties: {
+        name: { type: Type.STRING },
+        description: { type: Type.STRING },
+        tasks: {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    id: { type: Type.STRING },
+                    name: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    type: {
+                        type: Type.STRING,
+                        enum: [
+                            "DATA_INPUT",
+                            "GEMINI_PROMPT",
+                            "IMAGE_ANALYSIS",
+                            "TEXT_MANIPULATION",
+                            "SIMULATE_PROCESS",
+                            "DISPLAY_CHART",
+                            "GEMINI_GROUNDED"
+                        ]
+                    },
+                    dependencies: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    inputKeys: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    outputKey: { type: Type.STRING },
+                    promptTemplate: { type: Type.STRING, nullable: true },
+                    staticValue: { type: Type.STRING, nullable: true },
+                    functionBody: { type: Type.STRING, nullable: true },
+                    dataKey: { type: Type.STRING, nullable: true },
+                    promptId: { type: Type.STRING, nullable: true },
+                    agentConfig: {
+                        type: Type.OBJECT,
+                        properties: {
+                            model: { type: Type.STRING, nullable: true },
+                            temperature: { type: Type.NUMBER, nullable: true },
+                            topK: { type: Type.NUMBER, nullable: true },
+                            topP: { type: Type.NUMBER, nullable: true },
+                            systemInstruction: { type: Type.STRING, nullable: true }
+                        },
+                        nullable: true
+                    }
+                },
+                required: ['id', 'name', 'description', 'type', 'dependencies', 'inputKeys', 'outputKey']
+            }
+        }
+    },
+    required: ['name', 'description', 'tasks']
+};
+
+
 export const generateWorkflowFromGoal = async (goal: string): Promise<Workflow> => {
     const ai = getAiInstance();
 
-    const systemInstruction = `You are an expert AI workflow orchestrator. Your task is to analyze a user's goal and generate a complete, multi-task workflow as a valid JSON object.
+    const systemInstruction = `You are an expert AI workflow orchestrator. Your task is to analyze a user's goal and generate a complete, multi-task workflow as a structured JSON object.
     
-The user goal will be provided. Based on this, create a workflow with a series of tasks. The output MUST be a single, valid JSON object representing the workflow. Do not include any text or explanations outside the JSON.
-All string values in the JSON, especially for multi-line fields like "promptTemplate", must be properly formatted with escaped newlines (e.g., using \\n).
-
-The root JSON object must have 'name', 'description', and 'tasks' fields. Each task in the 'tasks' array must have the following fields:
-- id: A unique string identifier for the task (e.g., "task-1").
-- name: A short, descriptive name for the task.
-- description: A one-sentence explanation of what the task does.
-- type: One of "DATA_INPUT", "GEMINI_PROMPT", "IMAGE_ANALYSIS", "TEXT_MANIPULATION", "DISPLAY_CHART", "GEMINI_GROUNDED".
-- dependencies: An array of task IDs that this task depends on. Empty for initial tasks.
-- inputKeys: An array of strings representing keys from the Data Store needed for this task. Use dot notation for nested keys (e.g., "userInput.text").
-- outputKey: A string for the key where the task's result will be stored in the Data Store.
-
-Rules for specific task types:
-- GEMINI_PROMPT/IMAGE_ANALYSIS: Must include a 'promptTemplate' field. Use {{key}} for placeholders.
-- TEXT_MANIPULATION: Must include a 'functionBody' field containing a JavaScript function body as a string. E.g., "return \`Report: \${inputs.summary}\`".
-- DATA_INPUT: Must include a 'staticValue' field. Use "{{userInput.text}}", "{{userInput.image}}", or "{{userInput.file}}" to get data from the user input area.
-- DISPLAY_CHART: Must include a 'dataKey' field pointing to data in the Data Store suitable for charting.
-- GEMINI_GROUNDED: For tasks requiring up-to-date information. Should have a 'promptTemplate'.
-
-Example Goal: "Analyze a user-provided text for sentiment and then summarize it."
-Example Output:
-{
-  "name": "Sentiment Analysis and Summary",
-  "description": "Analyzes a piece of text for its sentiment and provides a summary.",
-  "tasks": [
-    {
-      "id": "task-1", "name": "Get User Text", "description": "Receives text from user input.", "type": "DATA_INPUT",
-      "dependencies": [], "inputKeys": ["userInput.text"], "outputKey": "articleText", "staticValue": "{{userInput.text}}"
-    },
-    {
-      "id": "task-2", "name": "Analyze Sentiment", "description": "Performs sentiment analysis.", "type": "GEMINI_PROMPT",
-      "dependencies": ["task-1"], "inputKeys": ["articleText"], "outputKey": "sentimentResult",
-      "promptTemplate": "What is the sentiment of this text? {{articleText}}"
-    },
-    {
-      "id": "task-3", "name": "Summarize Text", "description": "Summarizes the text.", "type": "GEMINI_PROMPT",
-      "dependencies": ["task-1"], "inputKeys": ["articleText"], "outputKey": "summaryResult",
-      "promptTemplate": "Summarize this: {{articleText}}"
-    }
-  ]
-}
-
-Now, generate the workflow for the user's goal.
-`;
+    Ensure tasks are logically connected via 'dependencies' and 'inputKeys'/'outputKey'.
+    - Use 'GEMINI_PROMPT' for general AI tasks.
+    - Use 'DATA_INPUT' for receiving user inputs (e.g. staticValue: "{{userInput.text}}").
+    - Use 'TEXT_MANIPULATION' for formatting results.
+    `;
 
     try {
         const response: GenerateContentResponse = await ai.models.generateContent({
@@ -271,18 +281,13 @@ Now, generate the workflow for the user's goal.
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
+                responseSchema: workflowSchema,
             },
         });
 
         const text = response.text;
-        const jsonData = parseJsonFromText(text);
+        const jsonData = JSON.parse(text || '{}');
         
-        // Basic validation
-        if (!jsonData.name || !jsonData.description || !Array.isArray(jsonData.tasks)) {
-            throw new Error("Generated workflow is missing required fields (name, description, tasks).");
-        }
-        
-        // Add a random ID to the workflow
         jsonData.id = `wf-custom-${crypto.randomUUID().slice(0, 8)}`;
 
         return jsonData as Workflow;

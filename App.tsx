@@ -11,7 +11,6 @@ import HelpModal from './components/HelpModal';
 import Documentation from './components/Documentation';
 import PromptLabPage from './components/lab/PromptLabPage';
 import { testPrompt } from './services/sflService';
-import { useWorkflowManager } from './hooks/useWorkflowManager';
 import { useWorkflowRunner } from './hooks/useWorkflowRunner';
 import WorkflowEditorModal from './components/lab/modals/WorkflowEditorModal';
 import WorkflowWizardModal from './components/lab/modals/WorkflowWizardModal';
@@ -22,9 +21,10 @@ import { useStore } from './store/useStore';
 
 const App: React.FC = () => {
   const { 
-      prompts, filters, appConstants, activeModal, selectedPrompt, activePage, isSidebarCollapsed,
+      prompts, workflows, filters, appConstants, activeModal, selectedPrompt, activePage, isSidebarCollapsed,
       init, addPrompt, updatePrompt, deletePrompt, importPrompts, setFilters, resetFilters,
-      setActiveModal, setSelectedPrompt, setActivePage, toggleSidebar, addAppConstant
+      setActiveModal, setSelectedPrompt, setActivePage, toggleSidebar, addAppConstant,
+      saveWorkflow, deleteWorkflow, saveCustomWorkflows
   } = useStore();
 
   useEffect(() => {
@@ -33,12 +33,12 @@ const App: React.FC = () => {
 
   const importFileRef = useRef<HTMLInputElement>(null);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
-
-  // Workflow management is still local to App or could be its own store.
-  // Keeping it here to minimize refactor risk for the workflow engine logic.
-  const { workflows, saveWorkflow, deleteWorkflow, isLoading: workflowsLoading, saveCustomWorkflows } = useWorkflowManager();
   const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
+  
   const activeWorkflow = useMemo(() => workflows.find(wf => wf.id === activeWorkflowId) || null, [workflows, activeWorkflowId]);
+  
+  // Note: WorkflowRunner maintains ephemeral execution state, so it stays as a local hook for now, 
+  // though prompts are passed from the store.
   const { dataStore, taskStates, isRunning, run, reset, runFeedback, stageInput } = useWorkflowRunner(activeWorkflow, prompts);
   const [activeLabTab, setActiveLabTab] = useState<'workflow' | 'ideation'>('workflow');
   const [ideationPromptId, setIdeationPromptId] = useState<string | null>(null);
@@ -53,10 +53,10 @@ const App: React.FC = () => {
   const ideationPrompt = useMemo(() => prompts.find(p => p.id === ideationPromptId) || null, [prompts, ideationPromptId]);
 
   useEffect(() => {
-    if (!workflowsLoading && workflows.length > 0 && !activeWorkflowId) {
+    if (workflows.length > 0 && !activeWorkflowId) {
         setActiveWorkflowId(workflows[0].id);
     }
-  }, [workflowsLoading, workflows, activeWorkflowId]);
+  }, [workflows, activeWorkflowId]);
 
 
   const handleOpenCreateModal = () => {
@@ -199,51 +199,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleExportAllPrompts = () => {
-    if (prompts.length === 0) return alert("No prompts to export.");
-    try {
-      const exportablePrompts = prompts.map(p => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { isTesting, geminiResponse, geminiTestError, ...rest } = p;
-        return rest;
-      });
-      const jsonData = JSON.stringify(exportablePrompts, null, 2);
-      const blob = new Blob([jsonData], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const date = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `sfl-prompt-library_${date}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Error exporting prompts:", error);
-      alert("Error exporting prompts.");
-    }
-  };
-
-  const handleExportAllPromptsMarkdown = () => {
-    if (prompts.length === 0) return alert("No prompts to export.");
-    try {
-      const allPromptsMarkdown = prompts.map(p => promptToMarkdown(p)).join('\n\n---\n\n');
-      const blob = new Blob([allPromptsMarkdown], { type: 'text/markdown' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const date = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `sfl-prompt-library_${date}.md`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Error exporting all markdown:", error);
-      alert("Error exporting all markdown.");
-    }
-  };
-
   const onFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
@@ -324,7 +279,7 @@ const App: React.FC = () => {
               run={run}
               reset={reset}
               runFeedback={runFeedback}
-              isLoading={workflowsLoading}
+              isLoading={workflows.length === 0} // Using array length as proxy for load state as we init sync
               workflows={workflows}
               onSelectWorkflow={setActiveWorkflowId}
               onOpenWorkflowEditor={() => setActiveModal(ModalType.WORKFLOW_EDITOR)}
@@ -466,36 +421,6 @@ const App: React.FC = () => {
             <MicrophoneIcon className="w-8 h-8"/>
           </button>
       )}
-      
-      {/* Header Actions for import/export need connecting to header if they were there, but Sidebar/TopBar handle most. */}
-      {/* The Header component from previous iteration seems to have been removed or merged into TopBar? 
-          Checking files... components/Header.tsx exists in provided files but App.tsx uses TopBar.tsx.
-          TopBar.tsx has search and create buttons. Sidebar has nav.
-          The 'Import/Export' buttons were in the old Header.tsx which isn't used in App.tsx?
-          Ah, I see 'components/Header.tsx' in the provided file list.
-          Wait, looking at the previous App.tsx content provided by user...
-          It imports TopBar and uses it. It does NOT use Header.
-          So Header.tsx might be dead code or I missed where it was used.
-          Actually, checking the previous App.tsx again...
-          It uses <TopBar ... />.
-          Okay, so I will stick to TopBar.
-          
-          Wait, I see `handleExportAllPrompts` etc defined in App.tsx but not passed to TopBar?
-          Let's check TopBar props.
-          TopBarProps: onAddNewPrompt, onOpenWizard, searchTerm, onSearchChange.
-          
-          It seems the Import/Export functionality for *prompts* is missing from the UI in the current App.tsx structure provided by the user?
-          Or maybe it was in the Sidebar?
-          Sidebar has "Settings".
-          
-          Let's look at `components/Header.tsx`. It has `onImportPrompts`, `onExportAllPrompts`.
-          But `App.tsx` imports `TopBar`.
-          Maybe the user replaced Header with TopBar in a previous step and lost the buttons?
-          
-          I will stick to the user's current App.tsx structure (using TopBar) and just update the state logic.
-          If buttons are missing in the UI, I won't add them back unless requested, to keep changes minimal,
-          BUT I will keep the handlers in App.tsx just in case.
-      */}
     </div>
   );
 };

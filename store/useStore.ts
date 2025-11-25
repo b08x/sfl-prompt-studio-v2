@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { PromptSFL, Filters, ModalType } from '../types';
+import { PromptSFL, Filters, ModalType, Workflow } from '../types';
 import { storage } from '../utils/storage';
-import { INITIAL_FILTERS, SAMPLE_PROMPTS, POPULAR_TAGS, TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS } from '../constants';
+import { INITIAL_FILTERS, SAMPLE_PROMPTS, POPULAR_TAGS, TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS, DEFAULT_WORKFLOWS } from '../constants';
 
 interface AppConstants {
   taskTypes: string[];
@@ -16,6 +16,7 @@ interface AppConstants {
 interface StoreState {
   // Data
   prompts: PromptSFL[];
+  workflows: Workflow[];
   filters: Filters;
   appConstants: AppConstants;
   
@@ -33,6 +34,11 @@ interface StoreState {
   deletePrompt: (id: string) => void;
   importPrompts: (newPrompts: PromptSFL[]) => void;
   
+  // Workflow Actions
+  saveWorkflow: (workflow: Workflow) => void;
+  deleteWorkflow: (id: string) => void;
+  saveCustomWorkflows: (workflows: Workflow[]) => void;
+  
   setFilters: (filters: Partial<Filters>) => void;
   resetFilters: () => void;
   
@@ -46,6 +52,7 @@ interface StoreState {
 
 export const useStore = create<StoreState>((set, get) => ({
   prompts: [],
+  workflows: [],
   filters: INITIAL_FILTERS,
   appConstants: {
     taskTypes: TASK_TYPES,
@@ -63,17 +70,23 @@ export const useStore = create<StoreState>((set, get) => ({
   isSidebarCollapsed: false,
   
   init: () => {
-    // Load prompts on init
-    const loaded = storage.getAllPrompts();
-    if (loaded.length === 0) {
+    // Load Prompts
+    const loadedPrompts = storage.getAllPrompts();
+    if (loadedPrompts.length === 0) {
         // If empty, seed with samples
         const samples = SAMPLE_PROMPTS;
         samples.forEach(p => storage.savePrompt(p));
         storage.savePromptIds(samples.map(p => p.id));
         set({ prompts: samples });
     } else {
-        set({ prompts: loaded });
+        set({ prompts: loadedPrompts });
     }
+
+    // Load Workflows
+    const customWorkflows = storage.getCustomWorkflows();
+    const defaultWorkflows = DEFAULT_WORKFLOWS.map(wf => ({ ...wf, isDefault: true }));
+    // Merge defaults with custom. Note: Defaults are always fresh from constants.
+    set({ workflows: [...defaultWorkflows, ...customWorkflows] });
   },
 
   loadPrompts: () => {
@@ -99,7 +112,6 @@ export const useStore = create<StoreState>((set, get) => ({
     
     // Save to Chunked Storage
     storage.savePrompt(prompt);
-    // Index doesn't change on update unless we sort, but we sort on load.
     
     set({ 
         prompts: newPrompts,
@@ -146,6 +158,40 @@ export const useStore = create<StoreState>((set, get) => ({
       storage.savePromptIds(newPrompts.map(p => p.id));
       set({ prompts: newPrompts });
   },
+
+  // Workflow Actions
+  saveWorkflow: (workflowToSave) => {
+      const { workflows } = get();
+      const newWorkflow = { ...workflowToSave, isDefault: false };
+      
+      const existingIndex = workflows.findIndex(wf => wf.id === newWorkflow.id && !wf.isDefault);
+      let updatedWorkflows;
+
+      if (existingIndex > -1) {
+          updatedWorkflows = workflows.map(wf => wf.id === newWorkflow.id && !wf.isDefault ? newWorkflow : wf);
+      } else {
+          updatedWorkflows = [...workflows, newWorkflow];
+      }
+      
+      const customOnly = updatedWorkflows.filter(wf => !wf.isDefault);
+      storage.saveCustomWorkflows(customOnly);
+      set({ workflows: updatedWorkflows });
+  },
+
+  deleteWorkflow: (id) => {
+      const { workflows } = get();
+      const updatedWorkflows = workflows.filter(wf => wf.id !== id || wf.isDefault);
+      const customOnly = updatedWorkflows.filter(wf => !wf.isDefault);
+      storage.saveCustomWorkflows(customOnly);
+      set({ workflows: updatedWorkflows });
+  },
+
+  saveCustomWorkflows: (customWorkflows) => {
+      storage.saveCustomWorkflows(customWorkflows);
+      const defaultWorkflows = DEFAULT_WORKFLOWS.map(wf => ({ ...wf, isDefault: true }));
+      set({ workflows: [...defaultWorkflows, ...customWorkflows] });
+  },
+
 
   setFilters: (filters) => set(state => ({ filters: { ...state.filters, ...filters } })),
   resetFilters: () => set({ filters: INITIAL_FILTERS }),
