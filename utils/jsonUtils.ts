@@ -2,45 +2,42 @@
 export const parseJsonFromText = (text: string) => {
   let jsonStr = text.trim();
   
-  // This regex finds the first JSON code block anywhere in the text.
-  const fenceMatch = jsonStr.match(/```(?:\w+)?\s*([\s\S]*?)\s*```/s);
+  // Find the first '{' or '[' and the last '}' or ']'
+  // to trim off any leading/trailing text from the model.
+  const firstBracket = jsonStr.indexOf('[');
+  const firstBrace = jsonStr.indexOf('{');
+  
+  let startIndex = -1;
 
-  if (fenceMatch && fenceMatch[1]) {
-    jsonStr = fenceMatch[1].trim();
-  } else {
-    // If no fences, find the first '{' or '[' and the last '}' or ']'
-    const firstBracket = jsonStr.indexOf('[');
-    const firstBrace = jsonStr.indexOf('{');
-    
-    let startIndex = -1;
-
-    if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
-      startIndex = firstBracket;
-    } else if (firstBrace !== -1) {
-      startIndex = firstBrace;
-    }
-    
-    if (startIndex > -1) {
-        const lastBracket = jsonStr.lastIndexOf(']');
-        const lastBrace = jsonStr.lastIndexOf('}');
-        const endIndex = jsonStr[startIndex] === '[' ? lastBracket : lastBrace;
-        
-        if (endIndex > startIndex) {
-            jsonStr = jsonStr.substring(startIndex, endIndex + 1);
-        } else {
-            jsonStr = jsonStr.substring(startIndex);
-        }
-    }
+  // Determine if array or object appears first
+  if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
+    startIndex = firstBracket;
+  } else if (firstBrace !== -1) {
+    startIndex = firstBrace;
   }
   
-  jsonStr = jsonStr.replace(/\\\\n/g, '\\n');
-  jsonStr = jsonStr.replace(/\\\\"/g, '\\"');
-  jsonStr = jsonStr.replace(/:(\s*)undefined\b/g, ':$1null');
-  jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
+  if (startIndex > -1) {
+      const lastBracket = jsonStr.lastIndexOf(']');
+      const lastBrace = jsonStr.lastIndexOf('}');
+      
+      // Match the closing bracket type to the opening one
+      const endIndex = jsonStr[startIndex] === '[' ? lastBracket : lastBrace;
+      
+      if (endIndex > startIndex) {
+          jsonStr = jsonStr.substring(startIndex, endIndex + 1);
+      }
+  }
+  
+  // Attempt to fix common invalid JSON from LLMs. This is a defensive measure.
+  jsonStr = jsonStr.replace(/\\\\n/g, '\\n'); // Fix over-escaped newlines
+  jsonStr = jsonStr.replace(/\\\\"/g, '\\"'); // Fix over-escaped quotes
+  jsonStr = jsonStr.replace(/:(\s*)undefined\b/g, ':$1null'); // Replace ": undefined" with ": null"
+  jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1'); // Remove trailing commas from objects and arrays
 
   try {
     const data = JSON.parse(jsonStr);
-    if (data.sourceDocument === null) {
+    // Normalize data: remove null sourceDocument if present
+    if (data && typeof data === 'object' && data.sourceDocument === null) {
       delete data.sourceDocument;
     }
     return data;
