@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { PromptSFL, Workflow, TaskType, Task } from '../../types';
-import { regenerateSFLFromSuggestion } from '../../services/sflService';
+import { syncPromptTextFromSFL } from '../../services/sflService';
 import { TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS } from '../../constants';
 import SparklesIcon from '../icons/SparklesIcon';
 import BeakerIcon from '../icons/BeakerIcon';
@@ -127,26 +127,25 @@ interface PromptRefinementStudioProps {
 
 const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ prompts, onTestInWorkflow, prompt, onPromptChange, onSelectPrompt }) => {
     const [isTestModalOpen, setIsTestModalOpen] = useState(false);
-    const [isRegeneratingText, setIsRegeneratingText] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
-    const regenerateTextFromSFL = useCallback(async () => {
+    const handleSyncText = useCallback(async () => {
         if (!prompt) return;
-        setIsRegeneratingText(true);
+        setIsSyncing(true);
         try {
-            const suggestion = "The SFL metadata has been updated. Regenerate the `promptText`, `title`, and `exampleOutput` to be fully consistent with the new SFL data.";
-            const fullyRegeneratedData = await regenerateSFLFromSuggestion(prompt, suggestion);
+            const syncedData = await syncPromptTextFromSFL(prompt);
             const updatedPrompt = {
                 ...prompt,
-                ...fullyRegeneratedData,
+                ...syncedData,
                 sourceDocument: prompt.sourceDocument,
                 updatedAt: new Date().toISOString(),
             };
             onPromptChange(updatedPrompt);
         } catch (error) {
-            console.error("Failed to regenerate prompt:", error);
-            alert("Failed to update prompt text from SFL changes.");
+            console.error("Failed to sync prompt:", error);
+            alert("Failed to sync prompt text from SFL metadata.");
         } finally {
-            setIsRegeneratingText(false);
+            setIsSyncing(false);
         }
     }, [prompt, onPromptChange]);
     
@@ -231,17 +230,17 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ prompts
                             <div className="flex justify-between items-center">
                                 <h3 className="text-lg font-medium text-gray-200">Prompt Text</h3>
                                 <button 
-                                    onClick={regenerateTextFromSFL}
-                                    disabled={isRegeneratingText}
+                                    onClick={handleSyncText}
+                                    disabled={isSyncing}
                                     className="flex items-center space-x-2 text-sm bg-gray-700 border border-gray-600 text-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
-                                    title="Regenerate prompt text from SFL metadata"
+                                    title="Overwrite prompt text based on current SFL settings"
                                 >
-                                    <ArrowPathIcon className={`w-4 h-4 ${isRegeneratingText ? 'animate-spin' : ''}`} />
-                                    <span>Update from SFL</span>
+                                    <ArrowPathIcon className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                                    <span>Sync Text to Metadata</span>
                                 </button>
                             </div>
                             <div className="relative">
-                                {isRegeneratingText && (
+                                {isSyncing && (
                                     <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center rounded-md z-10">
                                         <div className="spinner"></div>
                                     </div>

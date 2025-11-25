@@ -121,6 +121,39 @@ export const regenerateSFLFromSuggestion = async (
     return jsonData;
 };
 
+export const syncPromptTextFromSFL = async (
+    currentPrompt: Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'geminiResponse' | 'geminiTestError' | 'isTesting'>
+): Promise<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>> => {
+    const systemInstruction = `You are an expert in Systemic Functional Linguistics (SFL) and AI prompt engineering. 
+    Your task is to generate the textual content of a prompt based on its provided SFL metadata (Field, Tenor, Mode).
+    
+    1. Analyze the SFL Field, Tenor, and Mode thoroughly.
+    2. Rewrite the 'promptText', 'title', and 'exampleOutput' to be perfectly consistent with these parameters.
+    3. Do NOT change the SFL parameters themselves.
+    `;
+    
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { sourceDocument, ...promptForPayload } = currentPrompt;
+
+    const userContent = `
+    Here is the SFL Metadata:
+    ${JSON.stringify(promptForPayload, null, 2)}
+    
+    ${sourceDocument ? `Source document for style reference:\n---\n${sourceDocument.content}\n---\n` : ''}
+
+    Generate the aligned prompt text, title, and example output.
+    `;
+
+    const jsonData = await geminiProvider.generateJSON<any>(userContent, sflPromptSchema, { systemInstruction });
+    
+    if (jsonData.sflTenor && typeof jsonData.sflTenor.targetAudience === 'string') {
+        jsonData.sflTenor.targetAudience = [jsonData.sflTenor.targetAudience];
+    }
+    jsonData.sourceDocument = sourceDocument;
+    
+    return jsonData;
+};
+
 export const analyzeSFL = async (prompt: Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history'>): Promise<SFLAnalysis> => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { geminiResponse, geminiTestError, isTesting, ...promptData } = prompt;
