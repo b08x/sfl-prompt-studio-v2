@@ -1,6 +1,7 @@
 
 import { Task, DataStore, PromptSFL, Workflow } from '../types';
 import { geminiProvider } from './providers/GeminiProvider';
+import { runSafeCode } from './sandboxService';
 
 // Helper to safely get nested properties
 const getNested = (obj: Record<string, any>, path: string): any => {
@@ -20,15 +21,6 @@ export const templateString = (template: string, dataStore: DataStore): any => {
         if (typeof value === 'object') return JSON.stringify(value, null, 2);
         return String(value);
     });
-};
-
-const executeTextManipulation = (funcBody: string, inputs: Record<string, any>): any => {
-    try {
-        const func = new Function('inputs', funcBody);
-        return func(inputs);
-    } catch (e: any) {
-        throw new Error(`Error in custom function: ${e.message}`);
-    }
 };
 
 export const executeTask = async (task: Task, dataStore: DataStore, prompts: PromptSFL[]): Promise<any> => {
@@ -107,7 +99,7 @@ export const executeTask = async (task: Task, dataStore: DataStore, prompts: Pro
 
         case 'TEXT_MANIPULATION':
             if (!task.functionBody) throw new Error("Function body is missing.");
-            return executeTextManipulation(task.functionBody, resolvedInputs);
+            return await runSafeCode(task.functionBody, resolvedInputs);
 
         case 'SIMULATE_PROCESS':
             return new Promise(resolve => setTimeout(() => resolve({ status: "ok", message: `Simulated ${task.name}`}), 1000));
