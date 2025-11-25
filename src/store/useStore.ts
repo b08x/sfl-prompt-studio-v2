@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { PromptSFL, Filters, ModalType, Workflow } from '../types';
 import { storage } from '../utils/storage';
