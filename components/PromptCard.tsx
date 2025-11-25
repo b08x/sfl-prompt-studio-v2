@@ -55,6 +55,13 @@ const PromptCard: React.FC<PromptCardProps> = ({ prompt, onView, onEdit, onDelet
     'Technical Concept Explanation': 'text-amber-400 bg-amber-400/20',
     default: 'text-gray-400 bg-gray-700',
   }
+  
+  const safeRender = (value: any): string => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'object' && value !== null) return JSON.stringify(value);
+    return '';
+  };
 
   const iconColor = cardIconColorMapping[prompt.sflField.taskType] || cardIconColorMapping.default;
 
@@ -86,6 +93,9 @@ const PromptCard: React.FC<PromptCardProps> = ({ prompt, onView, onEdit, onDelet
   const analysis = prompt.sflAnalysis;
   const errorCount = analysis?.issues.filter(i => i.severity === 'error').length || 0;
   const warningCount = analysis?.issues.filter(i => i.severity === 'warning').length || 0;
+
+  // Safe access to keywords to prevent "split is not a function" errors
+  const keywords = typeof prompt.sflField.keywords === 'string' ? prompt.sflField.keywords : '';
 
   return (
     <div className="bg-gray-800 shadow-sm rounded-lg p-5 border border-gray-700 hover:shadow-lg hover:border-gray-600 transition-all duration-200 flex flex-col justify-between">
@@ -135,13 +145,13 @@ const PromptCard: React.FC<PromptCardProps> = ({ prompt, onView, onEdit, onDelet
         <p className="text-gray-300 text-sm mb-3 line-clamp-2" title={prompt.promptText}>{prompt.promptText}</p>
         
         <div className="space-y-2 text-sm mb-4">
-            <div className="flex"><p className="w-16 font-medium text-gray-400 shrink-0">Task:</p> <p className="text-gray-200 truncate">{prompt.sflField.taskType}</p></div>
-            <div className="flex"><p className="w-16 font-medium text-gray-400 shrink-0">Persona:</p> <p className="text-gray-200 truncate">{prompt.sflTenor.aiPersona}</p></div>
-            <div className="flex"><p className="w-16 font-medium text-gray-400 shrink-0">Format:</p> <p className="text-gray-200 truncate">{prompt.sflMode.outputFormat}</p></div>
+            <div className="flex"><p className="w-16 font-medium text-gray-400 shrink-0">Task:</p> <p className="text-gray-200 truncate">{safeRender(prompt.sflField.taskType)}</p></div>
+            <div className="flex"><p className="w-16 font-medium text-gray-400 shrink-0">Persona:</p> <p className="text-gray-200 truncate">{safeRender(prompt.sflTenor.aiPersona)}</p></div>
+            <div className="flex"><p className="w-16 font-medium text-gray-400 shrink-0">Format:</p> <p className="text-gray-200 truncate">{safeRender(prompt.sflMode.outputFormat)}</p></div>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-4">
-          {prompt.sflField.keywords.split(',').slice(0, 3).map((keyword) => (
+          {keywords.split(',').slice(0, 3).map((keyword) => (
             keyword.trim() && (
               <span key={keyword} className="px-2 py-0.5 text-xs font-medium text-teal-300 bg-teal-400/20 rounded-full">
                 #{keyword.trim()}

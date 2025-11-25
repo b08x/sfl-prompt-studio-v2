@@ -72,6 +72,8 @@ export interface PromptSFL {
   history: PromptVersion[];
   // SFL Analysis persistence
   sflAnalysis?: SFLAnalysis;
+  // Wizard Metadata
+  originalGoal?: string;
 }
 
 

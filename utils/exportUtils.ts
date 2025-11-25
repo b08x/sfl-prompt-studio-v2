@@ -1,3 +1,4 @@
+
 import { PromptSFL } from '../types';
 
 export const sanitizeFilename = (filename: string): string => {
@@ -8,6 +9,9 @@ export const promptToMarkdown = (prompt: PromptSFL): string => {
     const { 
         title, updatedAt, promptText, sflField, sflTenor, sflMode, exampleOutput, notes, sourceDocument
     } = prompt;
+
+    // Safe access for keywords
+    const keywordsStr = typeof sflField.keywords === 'string' ? sflField.keywords : '';
 
     const sections = [
         `# ${title || 'Untitled Prompt'}`,
@@ -43,7 +47,7 @@ export const promptToMarkdown = (prompt: PromptSFL): string => {
         `- **Topic:** ${sflField.topic || 'N/A'}`,
         `- **Task Type:** ${sflField.taskType || 'N/A'}`,
         `- **Domain Specifics:** ${sflField.domainSpecifics || 'N/A'}`,
-        `- **Keywords:** ${sflField.keywords ? `\`${sflField.keywords.split(',').map(k => k.trim()).join('`, `')}\`` : 'N/A'}`,
+        `- **Keywords:** ${keywordsStr ? `\`${keywordsStr.split(',').map(k => k.trim()).join('`, `')}\`` : 'N/A'}`,
         '',
         '### Tenor (Who is taking part?)',
         `- **AI Persona:** ${sflTenor.aiPersona || 'N/A'}`,

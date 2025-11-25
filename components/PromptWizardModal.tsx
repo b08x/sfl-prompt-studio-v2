@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef } from 'react';
 import { PromptSFL } from '../types';
 import { generateSFLFromGoal, regenerateSFLFromSuggestion } from '../services/sflService';
@@ -48,7 +49,11 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
 
         try {
             const generatedData = await generateSFLFromGoal(goal, sourceDoc?.content);
-            setFormData({...generatedData, sourceDocument: sourceDoc || undefined });
+            setFormData({
+                ...generatedData,
+                sourceDocument: sourceDoc || undefined,
+                originalGoal: goal 
+            });
             setStep('refinement');
         } catch (error: any) {
             setErrorMessage(error.message || 'An unknown error occurred.');
@@ -151,7 +156,7 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
         setRegenState(prev => ({ ...prev, loading: true }));
         try {
           const result = await regenerateSFLFromSuggestion(formData, regenState.suggestion);
-          setFormData(result);
+          setFormData(prev => ({ ...prev, ...result }));
           setRegenState({ shown: false, suggestion: '', loading: false });
         } catch (error) {
           console.error(error);
@@ -166,7 +171,7 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
         try {
             const suggestion = "The SFL fields have been manually updated. Regenerate the 'promptText', 'title', 'exampleOutput', and 'notes' to be consistent with the updated SFL data. Preserve the core goal.";
             const regeneratedData = await regenerateSFLFromSuggestion(formData, suggestion);
-            setFormData(regeneratedData);
+            setFormData(prev => ({ ...prev, ...regeneratedData }));
         } catch (error: any) {
             alert('Failed to update prompt: ' + (error.message || 'Unknown error'));
         } finally {

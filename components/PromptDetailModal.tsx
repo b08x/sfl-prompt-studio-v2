@@ -23,9 +23,26 @@ interface PromptDetailModalProps {
   onRevert: (prompt: PromptSFL, version: PromptVersion) => void;
 }
 
-const DetailItem: React.FC<{ label: string; value?: string | null | string[]; isCode?: boolean; isEmpty?: boolean }> = ({ label, value, isCode, isEmpty }) => {
-  const displayValue = Array.isArray(value) ? value.join(', ') : value;
-  if (isEmpty || !displayValue) return null;
+const DetailItem: React.FC<{ label: string; value?: any; isCode?: boolean; isEmpty?: boolean }> = ({ label, value, isCode, isEmpty }) => {
+  if (isEmpty) return null;
+  
+  let displayValue: string = '';
+  
+  if (value === null || value === undefined) {
+      return null;
+  }
+  
+  if (Array.isArray(value)) {
+      if (value.length === 0) return null;
+      displayValue = value.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ');
+  } else if (typeof value === 'object') {
+      displayValue = JSON.stringify(value, null, 2);
+  } else {
+      displayValue = String(value);
+  }
+  
+  if (!displayValue) return null;
+
   return (
     <div className="mb-3">
       <h4 className="text-sm font-semibold text-gray-400 mb-0.5">{label}</h4>
@@ -196,6 +213,7 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
         
         <DetailItem label="Example Output" value={displayedData.exampleOutput} isEmpty={!displayedData.exampleOutput} isCode/>
         <DetailItem label="Notes" value={displayedData.notes} isEmpty={!displayedData.notes} />
+        <DetailItem label="Original Goal (Wizard)" value={displayedData.originalGoal} isEmpty={!displayedData.originalGoal} />
         
         <div className="mt-3">
             <p className="text-xs text-gray-500">Created: {new Date(displayedData.createdAt).toLocaleString()}</p>
