@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { PromptSFL, SFLAnalysis } from '../types';
 import { analyzeSFL, regenerateSFLFromSuggestion } from '../services/sflService';
@@ -7,9 +8,10 @@ interface UsePromptAIProps {
   formData: Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history' | 'sflAnalysis'>;
   setFormData: React.Dispatch<React.SetStateAction<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'history' | 'sflAnalysis'>>>;
   promptToEdit?: PromptSFL | null;
+  apiKey?: string;
 }
 
-export const usePromptAI = ({ formData, setFormData, promptToEdit }: UsePromptAIProps) => {
+export const usePromptAI = ({ formData, setFormData, promptToEdit, apiKey }: UsePromptAIProps) => {
   const [sflAnalysis, setSflAnalysis] = useState<SFLAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
@@ -39,12 +41,18 @@ export const usePromptAI = ({ formData, setFormData, promptToEdit }: UsePromptAI
       return;
     }
 
+    if (!apiKey) {
+      setSflAnalysis(null);
+      setIsAnalyzing(false);
+      return;
+    }
+
     setIsAnalyzing(true);
 
     analysisTimeoutRef.current = window.setTimeout(async () => {
       try {
         const promptForAnalysis = { ...INITIAL_PROMPT_SFL, ...formData };
-        const analysis = await analyzeSFL(promptForAnalysis);
+        const analysis = await analyzeSFL(promptForAnalysis, apiKey);
         setSflAnalysis(analysis);
       } catch (error) {
         console.error("Analysis failed", error);
@@ -68,10 +76,14 @@ export const usePromptAI = ({ formData, setFormData, promptToEdit }: UsePromptAI
         clearTimeout(analysisTimeoutRef.current);
       }
     };
-  }, [formData]);
+  }, [formData, apiKey]);
 
   const handleRegeneratePrompt = async () => {
     if (!regenState.suggestion.trim()) return;
+    if (!apiKey) {
+      alert('Google API key is not configured. Please add your API key in Settings.');
+      return;
+    }
     setRegenState(prev => ({ ...prev, loading: true }));
     try {
       const promptForRegeneration = {
@@ -79,7 +91,7 @@ export const usePromptAI = ({ formData, setFormData, promptToEdit }: UsePromptAI
         version: promptToEdit?.version ?? 1,
         history: promptToEdit?.history ?? [],
       };
-      const regeneratedData = await regenerateSFLFromSuggestion(promptForRegeneration, regenState.suggestion);
+      const regeneratedData = await regenerateSFLFromSuggestion(promptForRegeneration, regenState.suggestion, apiKey);
       setFormData(regeneratedData);
       setRegenState({ shown: false, suggestion: '', loading: false });
     } catch (error) {
@@ -91,6 +103,10 @@ export const usePromptAI = ({ formData, setFormData, promptToEdit }: UsePromptAI
 
   const handleAutoFix = async () => {
     if (!sflAnalysis || sflAnalysis.issues.length === 0) return;
+    if (!apiKey) {
+      alert('Google API key is not configured. Please add your API key in Settings.');
+      return;
+    }
 
     setIsFixing(true);
     try {
@@ -106,7 +122,7 @@ export const usePromptAI = ({ formData, setFormData, promptToEdit }: UsePromptAI
         history: promptToEdit?.history ?? [],
       };
 
-      const fixedData = await regenerateSFLFromSuggestion(promptForRegeneration, suggestion);
+      const fixedData = await regenerateSFLFromSuggestion(promptForRegeneration, suggestion, apiKey);
       setFormData(fixedData);
     } catch (error) {
       console.error("Auto-fix failed", error);

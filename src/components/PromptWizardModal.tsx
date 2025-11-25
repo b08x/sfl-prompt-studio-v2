@@ -8,6 +8,8 @@ import SparklesIcon from './icons/SparklesIcon';
 import PaperClipIcon from './icons/PaperClipIcon';
 import XCircleIcon from './icons/XCircleIcon';
 import ArrowPathIcon from './icons/ArrowPathIcon';
+import { useStore } from '../store/useStore';
+import { AIProvider } from '../types/ai';
 
 interface PromptWizardModalProps {
     isOpen: boolean;
@@ -27,6 +29,7 @@ interface PromptWizardModalProps {
 type WizardStep = 'input' | 'loading' | 'refinement' | 'error';
 
 const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, onSave, appConstants, onAddConstant }) => {
+    const { userApiKeys } = useStore();
     const [step, setStep] = useState<WizardStep>('input');
     const [goal, setGoal] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -44,15 +47,23 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
             setTimeout(() => setStep('input'), 3000);
             return;
         }
+
+        const apiKey = userApiKeys[AIProvider.Google];
+        if (!apiKey) {
+            setErrorMessage('Google API key is not configured. Please add your API key in Settings.');
+            setStep('error');
+            return;
+        }
+
         setStep('loading');
         setErrorMessage('');
 
         try {
-            const generatedData = await generateSFLFromGoal(goal, sourceDoc?.content);
+            const generatedData = await generateSFLFromGoal(goal, apiKey, sourceDoc?.content);
             setFormData({
                 ...generatedData,
                 sourceDocument: sourceDoc || undefined,
-                originalGoal: goal 
+                originalGoal: goal
             });
             setStep('refinement');
         } catch (error: any) {
@@ -153,9 +164,16 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
     
     const handleRegeneratePrompt = async () => {
         if (!regenState.suggestion.trim()) return;
+
+        const apiKey = userApiKeys[AIProvider.Google];
+        if (!apiKey) {
+            alert('Google API key is not configured. Please add your API key in Settings.');
+            return;
+        }
+
         setRegenState(prev => ({ ...prev, loading: true }));
         try {
-          const result = await regenerateSFLFromSuggestion(formData, regenState.suggestion);
+          const result = await regenerateSFLFromSuggestion(formData, regenState.suggestion, apiKey);
           setFormData(prev => ({ ...prev, ...result }));
           setRegenState({ shown: false, suggestion: '', loading: false });
         } catch (error) {
@@ -166,11 +184,17 @@ const PromptWizardModal: React.FC<PromptWizardModalProps> = ({ isOpen, onClose, 
     };
 
     const handleSyncText = async () => {
+        const apiKey = userApiKeys[AIProvider.Google];
+        if (!apiKey) {
+            alert('Google API key is not configured. Please add your API key in Settings.');
+            return;
+        }
+
         setIsUpdating(true);
         setErrorMessage('');
         try {
             // Decoupled Logic: Explicitly sync text from metadata using dedicated service
-            const syncedData = await syncPromptTextFromSFL(formData);
+            const syncedData = await syncPromptTextFromSFL(formData, apiKey);
             setFormData(prev => ({ ...prev, ...syncedData }));
         } catch (error: any) {
             alert('Failed to sync prompt text: ' + (error.message || 'Unknown error'));
