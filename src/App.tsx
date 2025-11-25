@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { PromptSFL, Filters, ModalType, PromptVersion, StagedUserInput, Workflow } from './types';
+import { AIProvider } from './types/ai';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import Stats from './components/Stats';
@@ -24,7 +25,7 @@ import { useStore } from './store/useStore';
 const App: React.FC = () => {
   const {
       prompts, workflows, filters, appConstants, activeModal, selectedPrompt, isSidebarCollapsed,
-      isInitialized, apiKeyValidation,
+      isInitialized, apiKeyValidation, userApiKeys,
       init, addPrompt, updatePrompt, deletePrompt, importPrompts, setFilters, resetFilters,
       setActiveModal, setSelectedPrompt, toggleSidebar, addAppConstant,
       saveWorkflow, deleteWorkflow, saveCustomWorkflows
@@ -128,8 +129,21 @@ const App: React.FC = () => {
   }, [prompts, filters]);
 
   const handleTestWithGemini = async (promptToTest: PromptSFL, variables: Record<string, string>) => {
+    // Get Google API key from store
+    const googleApiKey = userApiKeys[AIProvider.Google];
+
+    if (!googleApiKey || googleApiKey.trim() === '') {
+      updatePrompt({
+        ...promptToTest,
+        isTesting: false,
+        geminiTestError: 'Please configure your Google API key in Settings before testing prompts.',
+        geminiResponse: undefined
+      });
+      return;
+    }
+
     updatePrompt({ ...promptToTest, isTesting: true, geminiResponse: undefined, geminiTestError: undefined });
-    
+
     let finalPromptText = promptToTest.promptText;
     Object.keys(variables).forEach(key => {
       const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
@@ -137,7 +151,7 @@ const App: React.FC = () => {
     });
 
     try {
-      const responseText = await testPrompt(finalPromptText);
+      const responseText = await testPrompt(finalPromptText, googleApiKey);
       updatePrompt({ ...promptToTest, isTesting: false, geminiResponse: responseText, geminiTestError: undefined });
     } catch (error: any) {
       updatePrompt({ ...promptToTest, isTesting: false, geminiTestError: error.message, geminiResponse: undefined });

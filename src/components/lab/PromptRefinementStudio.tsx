@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { PromptSFL, Workflow, TaskType, Task } from '../../types';
+import { AIProvider } from '../../types/ai';
 import { syncPromptTextFromSFL } from '../../services/sflService';
 import { TASK_TYPES, AI_PERSONAS, TARGET_AUDIENCES, DESIRED_TONES, OUTPUT_FORMATS, LENGTH_CONSTRAINTS } from '../../constants';
 import SparklesIcon from '../icons/SparklesIcon';
@@ -10,6 +11,7 @@ import ArrowDownTrayIcon from '../icons/ArrowDownTrayIcon';
 import ArrowPathIcon from '../icons/ArrowPathIcon';
 import TestResponseModal from './TestResponseModal';
 import { promptToMarkdown, sanitizeFilename } from '../../utils/exportUtils';
+import { useStore } from '../../store/useStore';
 
 const SFLEditor: React.FC<{ prompt: PromptSFL; onChange: (p: PromptSFL) => void }> = ({ prompt, onChange }) => {
     const commonInputClasses = "w-full px-3 py-2 bg-gray-900 border border-gray-600 text-gray-50 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm";
@@ -126,14 +128,22 @@ interface PromptRefinementStudioProps {
 }
 
 const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ prompts, onTestInWorkflow, prompt, onPromptChange, onSelectPrompt }) => {
+    const { userApiKeys } = useStore();
     const [isTestModalOpen, setIsTestModalOpen] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
 
     const handleSyncText = useCallback(async () => {
         if (!prompt) return;
+
+        const googleApiKey = userApiKeys[AIProvider.Google];
+        if (!googleApiKey || googleApiKey.trim() === '') {
+            alert('Please configure your Google API key in Settings before syncing prompt text.');
+            return;
+        }
+
         setIsSyncing(true);
         try {
-            const syncedData = await syncPromptTextFromSFL(prompt);
+            const syncedData = await syncPromptTextFromSFL(prompt, googleApiKey);
             const updatedPrompt = {
                 ...prompt,
                 ...syncedData,
@@ -147,7 +157,7 @@ const PromptRefinementStudio: React.FC<PromptRefinementStudioProps> = ({ prompts
         } finally {
             setIsSyncing(false);
         }
-    }, [prompt, onPromptChange]);
+    }, [prompt, onPromptChange, userApiKeys]);
     
     const handleExportMarkdown = () => {
         if (!prompt) return;
