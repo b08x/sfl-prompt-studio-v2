@@ -17,25 +17,33 @@ interface AppConstants {
   popularTags: string[];
 }
 
+export interface GlobalModelParams {
+  temperature: number;
+  topK: number;
+  topP: number;
+}
+
 interface StoreState {
   // Data
   prompts: PromptSFL[];
   workflows: Workflow[];
   filters: Filters;
   appConstants: AppConstants;
-  
+
   // AI Configuration State
+  isInitialized: boolean;
   userApiKeys: Record<AIProvider, string>;
   apiKeyValidation: Record<AIProvider, ApiKeyStatus>;
   availableModels: Record<AIProvider, AIModelConfig[]>;
+  globalModelParams: GlobalModelParams;
 
   // UI State
   activeModal: ModalType;
   selectedPrompt: PromptSFL | null;
   isSidebarCollapsed: boolean;
-  
+
   // Actions
-  init: () => void;
+  init: () => Promise<void>;
   loadPrompts: () => void;
   addPrompt: (prompt: PromptSFL) => void;
   updatePrompt: (prompt: PromptSFL) => void;
@@ -50,6 +58,7 @@ interface StoreState {
   // AI Configuration Actions
   setApiKey: (provider: AIProvider, key: string) => void;
   validateProviderKey: (provider: AIProvider) => Promise<void>;
+  setGlobalModelParams: (params: Partial<GlobalModelParams>) => void;
 
   setFilters: (filters: Partial<Filters>) => void;
   resetFilters: () => void;
@@ -74,7 +83,8 @@ export const useStore = create<StoreState>((set, get) => ({
     lengthConstraints: LENGTH_CONSTRAINTS,
     popularTags: POPULAR_TAGS,
   },
-  
+
+  isInitialized: false,
   userApiKeys: {
     [AIProvider.Google]: '',
     [AIProvider.OpenAI]: '',
@@ -96,12 +106,17 @@ export const useStore = create<StoreState>((set, get) => ({
     [AIProvider.Anthropic]: [],
     [AIProvider.Mistral]: [],
   },
+  globalModelParams: {
+    temperature: 0.7,
+    topK: 40,
+    topP: 0.9,
+  },
 
   activeModal: ModalType.NONE,
   selectedPrompt: null,
   isSidebarCollapsed: false,
   
-  init: () => {
+  init: async () => {
     // Load Prompts
     const loadedPrompts = storage.getAllPrompts();
     if (loadedPrompts.length === 0) {
@@ -120,16 +135,69 @@ export const useStore = create<StoreState>((set, get) => ({
     // Merge defaults with custom. Note: Defaults are always fresh from constants.
     set({ workflows: [...defaultWorkflows, ...customWorkflows] });
 
-    // Load API Keys
+    // Load API Keys from localStorage
+    const keysToValidate: AIProvider[] = [];
     try {
       const storedKeys = localStorage.getItem('sfl_api_keys');
       if (storedKeys) {
         const parsedKeys = JSON.parse(storedKeys);
         set(state => ({ userApiKeys: { ...state.userApiKeys, ...parsedKeys } }));
+
+        // Collect keys that need validation
+        Object.entries(parsedKeys).forEach(([provider, key]) => {
+          if (key && typeof key === 'string' && key.trim() !== '') {
+            keysToValidate.push(provider as AIProvider);
+          }
+        });
       }
     } catch (e) {
-      console.error("Failed to load API keys", e);
+      console.error("Failed to load API keys from localStorage", e);
     }
+
+    // Check for API keys in environment variables (Vite)
+    const envKeyMap = {
+      [AIProvider.Google]: import.meta.env.VITE_GOOGLE_API_KEY,
+      [AIProvider.OpenAI]: import.meta.env.VITE_OPENAI_API_KEY,
+      [AIProvider.OpenRouter]: import.meta.env.VITE_OPENROUTER_API_KEY,
+      [AIProvider.Anthropic]: import.meta.env.VITE_ANTHROPIC_API_KEY,
+      [AIProvider.Mistral]: import.meta.env.VITE_MISTRAL_API_KEY,
+    };
+
+    // Apply environment keys and collect for validation
+    Object.entries(envKeyMap).forEach(([provider, envKey]) => {
+      if (envKey && typeof envKey === 'string' && envKey.trim() !== '') {
+        const providerKey = provider as AIProvider;
+        set(state => ({
+          userApiKeys: { ...state.userApiKeys, [providerKey]: envKey }
+        }));
+        if (!keysToValidate.includes(providerKey)) {
+          keysToValidate.push(providerKey);
+        }
+      }
+    });
+
+    // Load global model params
+    try {
+      const storedParams = localStorage.getItem('sfl_global_model_params');
+      if (storedParams) {
+        const parsedParams = JSON.parse(storedParams);
+        set(state => ({ globalModelParams: { ...state.globalModelParams, ...parsedParams } }));
+      }
+    } catch (e) {
+      console.error("Failed to load global model params", e);
+    }
+
+    // Auto-validate all found API keys
+    const validatePromises = keysToValidate.map(provider =>
+      get().validateProviderKey(provider).catch(err => {
+        console.error(`Failed to validate ${provider}:`, err);
+      })
+    );
+
+    await Promise.all(validatePromises);
+
+    // Mark as initialized
+    set({ isInitialized: true });
   },
 
   loadPrompts: () => {
@@ -282,6 +350,18 @@ export const useStore = create<StoreState>((set, get) => ({
             availableModels: { ...state.availableModels, [provider]: [] }
         }));
     }
+  },
+
+  setGlobalModelParams: (params) => {
+    set(state => {
+      const newParams = { ...state.globalModelParams, ...params };
+      try {
+        localStorage.setItem('sfl_global_model_params', JSON.stringify(newParams));
+      } catch (e) {
+        console.error("Failed to save global model params", e);
+      }
+      return { globalModelParams: newParams };
+    });
   },
 
   setFilters: (filters) => set(state => ({ filters: { ...state.filters, ...filters } })),
