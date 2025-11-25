@@ -1,9 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { PromptSFL } from '../../types';
+import { AIProvider } from '../../types/ai';
 import { testPrompt } from '../../services/sflService';
 import ModalShell from '../ModalShell';
 import SparklesIcon from '../icons/SparklesIcon';
+import { useStore } from '../../store/useStore';
 
 interface TestResponseModalProps {
     isOpen: boolean;
@@ -12,6 +14,7 @@ interface TestResponseModalProps {
 }
 
 const TestResponseModal: React.FC<TestResponseModalProps> = ({ isOpen, onClose, prompt }) => {
+    const { userApiKeys } = useStore();
     const [variableValues, setVariableValues] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(false);
     const [response, setResponse] = useState('');
@@ -37,10 +40,16 @@ const TestResponseModal: React.FC<TestResponseModalProps> = ({ isOpen, onClose, 
     }, [isOpen, prompt, variables]);
 
     const handleRunTest = async () => {
+        const googleApiKey = userApiKeys[AIProvider.Google];
+        if (!googleApiKey || googleApiKey.trim() === '') {
+            setError('Please configure your Google API key in Settings before testing prompts.');
+            return;
+        }
+
         setIsLoading(true);
         setResponse('');
         setError('');
-        
+
         let finalPromptText = prompt.promptText;
         Object.keys(variableValues).forEach(key => {
             const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
@@ -48,7 +57,7 @@ const TestResponseModal: React.FC<TestResponseModalProps> = ({ isOpen, onClose, 
         });
 
         try {
-            const responseText = await testPrompt(finalPromptText);
+            const responseText = await testPrompt(finalPromptText, googleApiKey);
             setResponse(responseText);
         } catch (err: any) {
             setError(err.message || 'An unknown error occurred.');

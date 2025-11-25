@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { PromptSFL, Filters, ModalType, PromptVersion, StagedUserInput, Workflow } from './types';
+import { AIProvider } from './types/ai';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import Stats from './components/Stats';
@@ -11,6 +12,7 @@ import PromptWizardModal from './components/PromptWizardModal';
 import HelpModal from './components/HelpModal';
 import Documentation from './components/Documentation';
 import PromptLabPage from './components/lab/PromptLabPage';
+import SettingsPage from './components/SettingsPage';
 import { testPrompt } from './services/sflService';
 import { useWorkflowRunner } from './hooks/useWorkflowRunner';
 import WorkflowEditorModal from './components/lab/modals/WorkflowEditorModal';
@@ -21,18 +23,34 @@ import MicrophoneIcon from './components/icons/MicrophoneIcon';
 import { useStore } from './store/useStore';
 
 const App: React.FC = () => {
-  const { 
+  const {
       prompts, workflows, filters, appConstants, activeModal, selectedPrompt, isSidebarCollapsed,
+      isInitialized, apiKeyValidation, userApiKeys,
       init, addPrompt, updatePrompt, deletePrompt, importPrompts, setFilters, resetFilters,
       setActiveModal, setSelectedPrompt, toggleSidebar, addAppConstant,
       saveWorkflow, deleteWorkflow, saveCustomWorkflows
   } = useStore();
 
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     init();
   }, []);
+
+  // Validation guard: redirect to settings if no valid API keys
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const hasValidKey = Object.values(apiKeyValidation).some(status => status === 'valid');
+    const isOnSettings = location.pathname === '/settings';
+    const isOnDocumentation = location.pathname === '/documentation';
+
+    // Redirect to settings if no valid keys and not already on settings or documentation
+    if (!hasValidKey && !isOnSettings && !isOnDocumentation) {
+      navigate('/settings');
+    }
+  }, [isInitialized, apiKeyValidation, location.pathname, navigate]);
 
   const importFileRef = useRef<HTMLInputElement>(null);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
@@ -111,8 +129,21 @@ const App: React.FC = () => {
   }, [prompts, filters]);
 
   const handleTestWithGemini = async (promptToTest: PromptSFL, variables: Record<string, string>) => {
+    // Get Google API key from store
+    const googleApiKey = userApiKeys[AIProvider.Google];
+
+    if (!googleApiKey || googleApiKey.trim() === '') {
+      updatePrompt({
+        ...promptToTest,
+        isTesting: false,
+        geminiTestError: 'Please configure your Google API key in Settings before testing prompts.',
+        geminiResponse: undefined
+      });
+      return;
+    }
+
     updatePrompt({ ...promptToTest, isTesting: true, geminiResponse: undefined, geminiTestError: undefined });
-    
+
     let finalPromptText = promptToTest.promptText;
     Object.keys(variables).forEach(key => {
       const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
@@ -120,7 +151,7 @@ const App: React.FC = () => {
     });
 
     try {
-      const responseText = await testPrompt(finalPromptText);
+      const responseText = await testPrompt(finalPromptText, googleApiKey);
       updatePrompt({ ...promptToTest, isTesting: false, geminiResponse: responseText, geminiTestError: undefined });
     } catch (error: any) {
       updatePrompt({ ...promptToTest, isTesting: false, geminiTestError: error.message, geminiResponse: undefined });
@@ -402,10 +433,8 @@ const App: React.FC = () => {
             } />
             <Route path="/documentation" element={<div className="flex-1 overflow-y-auto p-6"><Documentation /></div>} />
             <Route path="/settings" element={
-                <div className="flex-1 overflow-y-auto p-6">
-                    <div className="text-center py-20 bg-gray-800 rounded-lg border border-gray-700">
-                        <h2 className="text-2xl font-bold text-gray-50">Coming Soon!</h2>
-                    </div>
+                <div className="flex-1 overflow-y-auto">
+                    <SettingsPage />
                 </div>
             } />
           </Routes>
