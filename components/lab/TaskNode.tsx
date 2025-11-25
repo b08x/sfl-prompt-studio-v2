@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Handle, Position, NodeProps } from 'reactflow';
 import { Task, TaskState, TaskStatus, TaskType } from '../../types';
 import CodeBracketIcon from '../icons/CodeBracketIcon';
 import SparklesIcon from '../icons/SparklesIcon';
@@ -30,14 +31,15 @@ const statusConfig = {
     [TaskStatus.SKIPPED]: { bg: 'bg-amber-500/10', border: 'border-amber-500', text: 'text-amber-300', iconBg: 'bg-amber-500/30' },
 };
 
-interface TaskNodeProps {
+interface TaskNodeData {
     task: Task;
     state: TaskState;
-    onClick: () => void;
+    onClick: (task: Task) => void;
     hasInputData?: boolean;
 }
 
-const TaskNode = React.forwardRef<HTMLDivElement, TaskNodeProps>(({ task, state, onClick, hasInputData }, ref) => {
+const TaskNode: React.FC<NodeProps<TaskNodeData>> = ({ data, selected }) => {
+    const { task, state, onClick, hasInputData } = data;
     const config = statusConfig[state.status];
 
     const getResultSummary = () => {
@@ -50,54 +52,69 @@ const TaskNode = React.forwardRef<HTMLDivElement, TaskNodeProps>(({ task, state,
     const duration = (state.startTime && state.endTime) ? `${((state.endTime - state.startTime)/1000).toFixed(2)}s` : null;
 
     return (
-        <div 
-            ref={ref}
-            onClick={onClick}
-            className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md hover:border-gray-600 ${config.bg} ${config.border} relative z-10`}
-        >
-            <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                    <div className={`p-2 rounded-md ${config.iconBg} ${config.text}`}>
-                        <TaskIcon type={task.type} />
+        <div className={`relative shadow-md rounded-lg bg-gray-900 ${selected ? 'ring-2 ring-blue-500' : ''}`}>
+            {/* Input Handle */}
+            <Handle 
+                type="target" 
+                position={Position.Left} 
+                className="!bg-gray-500 !w-3 !h-3 !border-2 !border-gray-900" 
+            />
+
+            <div 
+                onClick={() => onClick(task)}
+                className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-gray-500 w-72 ${config.bg} ${config.border} ${selected ? 'border-blue-500' : ''}`}
+            >
+                <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-md ${config.iconBg} ${config.text}`}>
+                            <TaskIcon type={task.type} />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <h3 className="font-semibold text-gray-50 truncate w-32" title={task.name}>{task.name}</h3>
+                            {hasInputData && <span title="Input has been staged for this task"><CheckIcon className="w-4 h-4 text-teal-400" /></span>}
+                            {task.promptId && <span title="Linked to SFL Prompt Library"><LinkIcon className="w-4 h-4 text-gray-500" /></span>}
+                        </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                        <h3 className="font-semibold text-gray-50">{task.name}</h3>
-                        {hasInputData && <span title="Input has been staged for this task"><CheckIcon className="w-4 h-4 text-teal-400" /></span>}
-                        {task.promptId && <span title="Linked to SFL Prompt Library"><LinkIcon className="w-4 h-4 text-gray-500" /></span>}
+                    <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full ${config.bg} ${config.text}`}>
+                        {state.status}
+                    </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-2 h-8 overflow-hidden line-clamp-2" title={task.description}>{task.description}</p>
+                
+                <div className="mt-3 pt-3 border-t border-gray-700 text-[10px] space-y-1">
+                    <p className="flex justify-between"><span className="font-medium text-gray-300">In:</span> <span className="text-gray-400 truncate max-w-[120px]" title={task.inputKeys.join(', ')}>{task.inputKeys.join(', ') || 'None'}</span></p>
+                    <p className="flex justify-between"><span className="font-medium text-gray-300">Out:</span> <span className="text-gray-400 truncate max-w-[120px]" title={task.outputKey}>{task.outputKey}</span></p>
+                </div>
+                
+                {state.status === TaskStatus.COMPLETED && (
+                    <div className="mt-2 pt-2 border-t border-gray-700 text-xs">
+                        <p className="font-medium text-teal-300">Result:</p>
+                        <p className="text-gray-200 break-words h-6 overflow-hidden">{getResultSummary()}</p>
                     </div>
-                </div>
-                <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${config.bg} ${config.text}`}>
-                    {state.status}
-                </span>
+                )}
+                
+                {state.status === TaskStatus.FAILED && state.error && (
+                    <div className="mt-2 pt-2 border-t border-gray-700 text-xs">
+                        <p className="font-medium text-red-300">Error:</p>
+                        <p className="text-red-400 break-words h-6 overflow-hidden" title={state.error}>{state.error}</p>
+                    </div>
+                )}
+                
+                {duration && (
+                    <div className="text-right text-[10px] text-gray-500 mt-2">
+                        {duration}
+                    </div>
+                )}
             </div>
-            <p className="text-xs text-gray-400 mt-2 h-8 overflow-hidden">{task.description}</p>
-            
-            <div className="mt-3 pt-3 border-t border-gray-700 text-xs space-y-1">
-                <p><span className="font-medium text-gray-300">Inputs:</span> <span className="text-gray-400 truncate">{task.inputKeys.join(', ') || 'None'}</span></p>
-                <p><span className="font-medium text-gray-300">Output:</span> <span className="text-gray-400">{task.outputKey}</span></p>
-            </div>
-            
-             {state.status === TaskStatus.COMPLETED && (
-                <div className="mt-2 pt-2 border-t border-gray-700 text-xs">
-                    <p className="font-medium text-teal-300">Result:</p>
-                    <p className="text-gray-200 break-words h-6 overflow-hidden">{getResultSummary()}</p>
-                </div>
-            )}
-            
-            {state.status === TaskStatus.FAILED && state.error && (
-                <div className="mt-2 pt-2 border-t border-gray-700 text-xs">
-                    <p className="font-medium text-red-300">Error:</p>
-                    <p className="text-red-400 break-words h-6 overflow-hidden">{state.error}</p>
-                </div>
-            )}
-            
-            {duration && (
-                <div className="text-right text-xs text-gray-500 mt-2">
-                    {duration}
-                </div>
-            )}
+
+            {/* Output Handle */}
+            <Handle 
+                type="source" 
+                position={Position.Right} 
+                className="!bg-gray-500 !w-3 !h-3 !border-2 !border-gray-900" 
+            />
         </div>
     );
-});
+};
 
 export default TaskNode;

@@ -1,15 +1,11 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { PromptSFL, SFLAnalysis } from '../types';
 import { parseJsonFromText } from './geminiService';
 
 // Helper function to get a configured AI instance
 const getAiInstance = () => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-        throw new Error("Gemini API Key is not configured.");
-    }
-    return new GoogleGenAI({ apiKey });
+    // Guideline: The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 // Define the structured JSON schema for the AI's response

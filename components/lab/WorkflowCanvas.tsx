@@ -1,7 +1,16 @@
 
-
-import React, { useRef, useLayoutEffect, useState } from 'react';
-import { Workflow, TaskStatus, PromptSFL, TaskStateMap, Task, TaskType, DataStore } from '../../types';
+import React, { useEffect, useMemo, useCallback } from 'react';
+import ReactFlow, { 
+    Background, 
+    Controls, 
+    useNodesState, 
+    useEdgesState,
+    Node,
+    Edge,
+    Position
+} from 'reactflow';
+import dagre from 'dagre';
+import { Workflow, TaskStateMap, Task, TaskType, DataStore, TaskStatus, PromptSFL } from '../../types';
 import TaskNode from './TaskNode';
 
 interface WorkflowCanvasProps {
@@ -13,116 +22,121 @@ interface WorkflowCanvasProps {
     dataStore: DataStore;
 }
 
-const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ workflow, prompts, taskStates, runFeedback, onTaskClick, dataStore }) => {
-    
-    const getNested = (obj: any, path: string) => path.split('.').reduce((acc, part) => acc && acc[part], obj);
-    
-    const nodeRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
-    const canvasRef = useRef<HTMLDivElement | null>(null);
-    const [paths, setPaths] = useState<string[]>([]);
+const nodeTypes = {
+    taskNode: TaskNode,
+};
 
-    useLayoutEffect(() => {
-        const calculatePaths = () => {
-            const newPaths: string[] = [];
-            const canvasRect = canvasRef.current?.getBoundingClientRect();
-            if (!canvasRect) return;
+const getNested = (obj: any, path: string) => path.split('.').reduce((acc, part) => acc && acc[part], obj);
 
-            for (const task of workflow.tasks) {
-                for (const depId of task.dependencies) {
-                    const sourceNode = nodeRefs.current.get(depId);
-                    const targetNode = nodeRefs.current.get(task.id);
+const dagreGraph = new dagre.graphlib.Graph();
+dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-                    if (sourceNode && targetNode) {
-                        const sourceRect = sourceNode.getBoundingClientRect();
-                        const targetRect = targetNode.getBoundingClientRect();
+const nodeWidth = 320; // Approximate width including padding/margin
+const nodeHeight = 200; // Approximate height
 
-                        const x1 = sourceRect.right - canvasRect.left;
-                        const y1 = sourceRect.top + sourceRect.height / 2 - canvasRect.top;
-                        
-                        const x2 = targetRect.left - canvasRect.left;
-                        const y2 = targetRect.top + targetRect.height / 2 - canvasRect.top;
+const getLayoutedElements = (
+    workflow: Workflow, 
+    taskStates: TaskStateMap, 
+    dataStore: DataStore,
+    onTaskClick: (task: Task) => void
+) => {
+    dagreGraph.setGraph({ rankdir: 'LR' });
 
-                        const controlPointX1 = x1 + 60;
-                        const controlPointY1 = y1;
-                        const controlPointX2 = x2 - 60;
-                        const controlPointY2 = y2;
+    workflow.tasks.forEach((task) => {
+        dagreGraph.setNode(task.id, { width: nodeWidth, height: nodeHeight });
+    });
 
-                        newPaths.push(`M ${x1} ${y1} C ${controlPointX1} ${controlPointY1}, ${controlPointX2} ${controlPointY2}, ${x2} ${y2}`);
-                    }
-                }
-            }
-            setPaths(newPaths);
+    workflow.tasks.forEach((task) => {
+        task.dependencies.forEach((depId) => {
+            dagreGraph.setEdge(depId, task.id);
+        });
+    });
+
+    dagre.layout(dagreGraph);
+
+    const nodes: Node[] = workflow.tasks.map((task) => {
+        const nodeWithPosition = dagreGraph.node(task.id);
+        const hasInputData = task.type === TaskType.DATA_INPUT && task.inputKeys.some(key => {
+            const value = getNested(dataStore, key);
+            return value !== undefined && value !== null && value !== '';
+        });
+
+        return {
+            id: task.id,
+            type: 'taskNode',
+            position: {
+                x: nodeWithPosition.x - nodeWidth / 2,
+                y: nodeWithPosition.y - nodeHeight / 2,
+            },
+            data: {
+                task,
+                state: taskStates[task.id] || { status: TaskStatus.PENDING },
+                onClick: onTaskClick,
+                hasInputData,
+            },
         };
-        
-        // Timeout to ensure layout is stable after render
-        const timer = setTimeout(calculatePaths, 50);
+    });
 
-        window.addEventListener('resize', calculatePaths);
-        
-        return () => {
-            clearTimeout(timer);
-            window.removeEventListener('resize', calculatePaths);
-        };
-    }, [workflow]);
+    const edges: Edge[] = workflow.tasks.flatMap(task => task.dependencies.map(depId => ({
+        id: `e-${depId}-${task.id}`,
+        source: depId,
+        target: task.id,
+        type: 'smoothstep', // curved edges
+        animated: true,
+        style: { stroke: '#5c6f7e', strokeWidth: 2 },
+    })));
+
+    return { nodes, edges };
+};
+
+const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ 
+    workflow, 
+    prompts, // Kept in props if needed for future expansion, effectively used implicitly by parent passing tasks
+    taskStates, 
+    runFeedback, 
+    onTaskClick, 
+    dataStore 
+}) => {
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+
+    // Recalculate layout and nodes whenever relevant data changes
+    useEffect(() => {
+        const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+            workflow, 
+            taskStates, 
+            dataStore, 
+            onTaskClick
+        );
+        setNodes(layoutedNodes);
+        setEdges(layoutedEdges);
+    }, [workflow, taskStates, dataStore, onTaskClick, setNodes, setEdges]);
 
     return (
-        <div className="flex-1 flex flex-col bg-gray-900 relative" ref={canvasRef}>
-             <svg className="absolute top-0 left-0 w-full h-full pointer-events-none z-0" style={{ overflow: 'visible' }}>
-                <defs>
-                    <marker
-                        id="arrow"
-                        viewBox="0 0 10 10"
-                        refX="8"
-                        refY="5"
-                        markerWidth="6"
-                        markerHeight="6"
-                        orient="auto-start-reverse"
-                    >
-                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#5c6f7e" />
-                    </marker>
-                </defs>
-                {paths.map((path, index) => (
-                    <path
-                        key={index}
-                        d={path}
-                        stroke="#5c6f7e"
-                        strokeWidth="2"
-                        fill="none"
-                        markerEnd="url(#arrow)"
-                    />
-                ))}
-            </svg>
-            <div className="flex-1 overflow-y-auto p-6 relative z-10">
-                 {runFeedback.length > 0 && (
-                    <div className="mb-4 p-3 bg-amber-900/50 border-l-4 border-amber-500 text-amber-300 text-xs rounded-r-lg">
-                        <p className="font-bold">Execution Notes:</p>
-                        <ul className="list-disc list-inside">
-                            {runFeedback.map((fb, i) => <li key={i}>{fb}</li>)}
-                        </ul>
-                    </div>
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {workflow.tasks.map(task => {
-                        const hasInputData = task.type === TaskType.DATA_INPUT && task.inputKeys.some(key => {
-                            const value = getNested(dataStore, key);
-                            return value !== undefined && value !== null && value !== '';
-                        });
-
-                        return (
-                             <TaskNode
-                                key={task.id}
-                                // FIX: The ref callback must not return a value. `Map.set` returns the map,
-                                // so we wrap the call in braces to make the function return `undefined`.
-                                ref={el => { nodeRefs.current.set(task.id, el); }}
-                                task={task}
-                                state={taskStates[task.id] || { status: TaskStatus.PENDING }}
-                                onClick={() => onTaskClick(task)}
-                                hasInputData={hasInputData}
-                            />
-                        );
-                    })}
+        <div className="flex-1 h-full bg-gray-900 relative">
+            {runFeedback.length > 0 && (
+                <div className="absolute top-4 left-4 z-20 max-w-md p-3 bg-amber-900/90 border-l-4 border-amber-500 text-amber-300 text-xs rounded shadow-lg backdrop-blur-sm">
+                    <p className="font-bold mb-1">Execution Notes:</p>
+                    <ul className="list-disc list-inside max-h-32 overflow-y-auto">
+                        {runFeedback.map((fb, i) => <li key={i}>{fb}</li>)}
+                    </ul>
                 </div>
-            </div>
+            )}
+            
+            <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                nodeTypes={nodeTypes}
+                fitView
+                minZoom={0.2}
+                maxZoom={1.5}
+                attributionPosition="bottom-right"
+            >
+                <Background color="#374151" gap={20} size={1} />
+                <Controls className="bg-gray-800 border-gray-700 fill-gray-200" />
+            </ReactFlow>
         </div>
     );
 };

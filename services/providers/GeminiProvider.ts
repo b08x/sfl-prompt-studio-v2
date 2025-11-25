@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, GenerateContentResponse, Part, LiveConnectConfig } from "@google/genai";
 import { AIProvider, AIConfig, LiveSession } from "../aiTypes";
 import { parseJsonFromText } from "../../utils/jsonUtils";
@@ -7,11 +6,8 @@ export class GeminiProvider implements AIProvider {
     private ai: GoogleGenAI;
 
     constructor() {
-        const apiKey = process.env.API_KEY;
-        if (!apiKey) {
-            throw new Error("Gemini API Key is not configured.");
-        }
-        this.ai = new GoogleGenAI({ apiKey });
+        // Guideline: The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+        this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     }
 
     async generateText(prompt: string, config?: AIConfig): Promise<string> {
@@ -26,7 +22,7 @@ export class GeminiProvider implements AIProvider {
                     topP: config?.topP,
                 }
             });
-            return response.text;
+            return response.text || "";
         } catch (error: any) {
             throw new Error(`Gemini API Error: ${error.message}`);
         }
@@ -44,7 +40,7 @@ export class GeminiProvider implements AIProvider {
                     temperature: config?.temperature,
                 },
             });
-            return parseJsonFromText(response.text) as T;
+            return parseJsonFromText(response.text || "{}") as T;
         } catch (error: any) {
             throw new Error(`Gemini API JSON Error: ${error.message}`);
         }
@@ -60,7 +56,7 @@ export class GeminiProvider implements AIProvider {
                     temperature: config?.temperature,
                 }
             });
-            return response.text;
+            return response.text || "";
         } catch (error: any) {
             throw new Error(`Gemini Image Analysis Error: ${error.message}`);
         }
@@ -84,7 +80,7 @@ export class GeminiProvider implements AIProvider {
                 .filter((web: any) => web && web.uri);
 
             return {
-                text: response.text,
+                text: response.text || "",
                 sources: sources,
             };
         } catch (error: any) {

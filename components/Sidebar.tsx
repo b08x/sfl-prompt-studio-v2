@@ -1,6 +1,6 @@
-
 import React from 'react';
-import { Filters, DataStore, StagedUserInput } from '../types';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Filters } from '../types';
 import BrainCircuitIcon from './icons/BrainCircuitIcon';
 import HomeIcon from './icons/HomeIcon';
 import FlaskIcon from './icons/FlaskIcon';
@@ -15,9 +15,6 @@ import FaceSmileIcon from './icons/FaceSmileIcon';
 import BeakerIcon from './icons/BeakerIcon';
 import ChevronDoubleLeftIcon from './icons/ChevronDoubleLeftIcon';
 import ChevronDoubleRightIcon from './icons/ChevronDoubleRightIcon';
-import DataStoreViewer from './lab/DataStoreViewer';
-
-type Page = 'dashboard' | 'lab' | 'documentation' | 'settings';
 
 interface SidebarProps {
   // Dashboard
@@ -26,8 +23,6 @@ interface SidebarProps {
   popularTags: string[];
   
   // Navigation
-  activePage: Page;
-  onNavigate: (page: Page) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 }
@@ -56,8 +51,11 @@ const FilterItem: React.FC<{ icon: React.ComponentType<{ className?: string }>; 
 
 const Sidebar: React.FC<SidebarProps> = ({ 
     filters, onFilterChange, popularTags, 
-    activePage, onNavigate, isCollapsed, onToggleCollapse,
+    isCollapsed, onToggleCollapse,
 }) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+
     const taskTypes = ["Explanation", "Code Generation", "Summarization", "Translation"];
     const taskIcons: { [key: string]: React.ComponentType<{ className?: string }> } = {
         "Explanation": ChatBubbleLeftRightIcon,
@@ -73,6 +71,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         "Sarcastic Bot": BeakerIcon,
     };
 
+    const isActive = (path: string) => {
+        if (path === '/' && location.pathname === '/') return true;
+        if (path !== '/' && location.pathname.startsWith(path)) return true;
+        return false;
+    };
+
   return (
     <aside className={`bg-gray-800 text-gray-50 flex flex-col transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-96'}`}>
       <div className="flex flex-col p-4 space-y-4 overflow-hidden h-full">
@@ -85,16 +89,16 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div>
               <h3 className={`text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 ${isCollapsed ? 'text-center' : 'px-3'}`}>{isCollapsed ? 'NAV' : 'Navigation'}</h3>
               <nav className="space-y-1">
-                  <NavItem icon={HomeIcon} label="Dashboard" active={activePage === 'dashboard'} onClick={() => onNavigate('dashboard')} isCollapsed={isCollapsed} />
-                  <NavItem icon={FlaskIcon} label="Prompt Lab" active={activePage === 'lab'} onClick={() => onNavigate('lab')} isCollapsed={isCollapsed} />
-                  <NavItem icon={BookOpenIcon} label="Documentation" active={activePage === 'documentation'} onClick={() => onNavigate('documentation')} isCollapsed={isCollapsed} />
-                  <NavItem icon={CogIcon} label="Settings" active={activePage === 'settings'} onClick={() => onNavigate('settings')} isCollapsed={isCollapsed} />
+                  <NavItem icon={HomeIcon} label="Dashboard" active={isActive('/')} onClick={() => navigate('/')} isCollapsed={isCollapsed} />
+                  <NavItem icon={FlaskIcon} label="Prompt Lab" active={isActive('/lab')} onClick={() => navigate('/lab')} isCollapsed={isCollapsed} />
+                  <NavItem icon={BookOpenIcon} label="Documentation" active={isActive('/documentation')} onClick={() => navigate('/documentation')} isCollapsed={isCollapsed} />
+                  <NavItem icon={CogIcon} label="Settings" active={isActive('/settings')} onClick={() => navigate('/settings')} isCollapsed={isCollapsed} />
               </nav>
             </div>
             
-            {/* Conditional Content Area */}
+            {/* Conditional Content Area - Show filters mostly on dashboard, but available if needed */}
             <div className="flex-grow flex flex-col space-y-4 overflow-y-auto min-h-0">
-              {activePage === 'dashboard' && (
+              {location.pathname === '/' && (
                 <>
                    <div>
                         <h3 className={`text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 ${isCollapsed ? 'text-center' : 'px-3'}`}>{isCollapsed ? 'TASK' : 'Filter by Task Type'}</h3>

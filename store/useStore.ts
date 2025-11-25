@@ -23,7 +23,6 @@ interface StoreState {
   // UI State
   activeModal: ModalType;
   selectedPrompt: PromptSFL | null;
-  activePage: 'dashboard' | 'lab' | 'documentation' | 'settings';
   isSidebarCollapsed: boolean;
   
   // Actions
@@ -44,7 +43,6 @@ interface StoreState {
   
   setActiveModal: (modal: ModalType) => void;
   setSelectedPrompt: (prompt: PromptSFL | null) => void;
-  setActivePage: (page: 'dashboard' | 'lab' | 'documentation' | 'settings') => void;
   toggleSidebar: () => void;
   
   addAppConstant: (key: keyof AppConstants, value: string) => void;
@@ -66,7 +64,6 @@ export const useStore = create<StoreState>((set, get) => ({
   
   activeModal: ModalType.NONE,
   selectedPrompt: null,
-  activePage: 'dashboard',
   isSidebarCollapsed: false,
   
   init: () => {
@@ -198,7 +195,6 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setActiveModal: (modal) => set({ activeModal: modal }),
   setSelectedPrompt: (prompt) => set({ selectedPrompt: prompt }),
-  setActivePage: (page) => set({ activePage: page }),
   toggleSidebar: () => set(state => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
   
   addAppConstant: (key, value) => set(state => {

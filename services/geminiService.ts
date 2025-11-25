@@ -3,11 +3,8 @@ import { PromptSFL, Workflow } from '../types';
 
 // Helper function to get a configured AI instance, ensuring API key exists.
 const getAiInstance = () => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-        throw new Error("Gemini API Key is not configured. Please ensure the API_KEY environment variable is set.");
-    }
-    return new GoogleGenAI({ apiKey });
+    // According to guidelines, API key must be obtained from process.env.API_KEY
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 /**

@@ -1,15 +1,13 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { GoogleGenAI, Modality, FunctionDeclaration, Type, LiveServerMessage } from '@google/genai';
-import { encode, decode, decodeAudioData } from '../utils/audioUtils';
-import type { TranscriptEntry, SFLField, SFLTenor, SFLMode, PromptSFL, Workflow } from '../types';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import { Modality, FunctionDeclaration, Type } from '@google/genai';
+import type { SFLField, SFLTenor, SFLMode, PromptSFL, Workflow } from '../types';
+import { useGeminiLive } from '../hooks/useGeminiLive';
 
 import XMarkIcon from './icons/XMarkIcon';
 import SparklesIcon from './icons/SparklesIcon';
 import UserCircleIcon from './icons/UserCircleIcon';
 import MicrophoneIcon from './icons/MicrophoneIcon';
 import StopIcon from './icons/StopIcon';
-
-type ConversationStatus = 'idle' | 'connecting' | 'active' | 'error';
 
 // 1. Explicitly Define the Tool
 const updatePromptComponentsFunctionDeclaration: FunctionDeclaration = {
@@ -65,21 +63,9 @@ interface LiveAssistantProps {
 const LiveAssistant: React.FC<LiveAssistantProps> = ({ 
     isOpen, onClose, activePage, labTab, activePrompt, onUpdatePrompt, activeWorkflow
 }) => {
-    const [status, setStatus] = useState<ConversationStatus>('idle');
-    const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
-    const [error, setError] = useState<string | null>(null);
+    // Use the secure key from process.env
+    const { status, transcript, error, connect, disconnect, setTranscript } = useGeminiLive({ apiKey: process.env.API_KEY });
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
-    // LiveSession is not exported, so using any.
-    const sessionRef = useRef<any | null>(null);
-    const inputAudioContextRef = useRef<AudioContext | null>(null);
-    const outputAudioContextRef = useRef<AudioContext | null>(null);
-    const mediaStreamRef = useRef<MediaStream | null>(null);
-    const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
-    const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-    
-    const nextStartTimeRef = useRef<number>(0);
-    const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
     // BUG FIX: Maintain a ref to the active prompt.
     // The Live API callbacks form a closure when the connection starts.
@@ -93,7 +79,7 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
     const isIdeationMode = activePage === 'lab' && labTab === 'ideation' && activePrompt && onUpdatePrompt;
 
     const systemInstruction = useMemo(() => {
-        const base = `You are a friendly and helpful AI assistant for the "SFL Prompt Studio" application. Your goal is to provide contextual help to the user. Be concise and clear.`;
+        const base = `You are a friendly and helpful customer support agent. Your goal is to provide contextual help to the user. Be concise and clear.`;
         if (isIdeationMode) {
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { id, createdAt, updatedAt, version, history, geminiResponse, geminiTestError, isTesting, ...promptForContext } = activePrompt;
@@ -112,209 +98,63 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [transcript, status]);
 
-    const cleanup = useCallback(() => {
-        if (scriptProcessorRef.current) {
-            scriptProcessorRef.current.onaudioprocess = null;
-            scriptProcessorRef.current.disconnect();
-            scriptProcessorRef.current = null;
-        }
-        if (mediaStreamSourceRef.current) {
-            mediaStreamSourceRef.current.disconnect();
-            mediaStreamSourceRef.current = null;
-        }
-        if (mediaStreamRef.current) {
-            mediaStreamRef.current.getTracks().forEach(track => track.stop());
-            mediaStreamRef.current = null;
-        }
-        if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') {
-            inputAudioContextRef.current.close();
-        }
-        if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') {
-            outputAudioContextRef.current.close();
-        }
-        audioSourcesRef.current.forEach(source => source.stop());
-        audioSourcesRef.current.clear();
-        nextStartTimeRef.current = 0;
-    }, []);
-
-    const endConversation = useCallback(() => {
-        if (sessionRef.current) {
-          sessionRef.current.close();
-          sessionRef.current = null;
-        }
-        cleanup();
-        setStatus('idle');
-    }, [cleanup]);
-
     // 2. Client-Side Tool Execution Handler
-    const handleUpdatePromptFromTool = useCallback((args: {
-        sflField?: Partial<SFLField>;
-        sflTenor?: Partial<SFLTenor>;
-        sflMode?: Partial<SFLMode>;
-    }) => {
-        // BUG FIX: Use the ref to get the latest prompt state
-        const currentPrompt = activePromptRef.current;
-        if (!currentPrompt || !onUpdatePrompt) return;
-        
-        console.log("Executing Tool: updatePromptComponents", args);
-        
-        const updatedPrompt = {
-            ...currentPrompt,
-            sflField: { ...currentPrompt.sflField, ...(args.sflField || {}) },
-            sflTenor: { ...currentPrompt.sflTenor, ...(args.sflTenor || {}) },
-            sflMode: { ...currentPrompt.sflMode, ...(args.sflMode || {}) },
-            updatedAt: new Date().toISOString()
-        };
-        onUpdatePrompt(updatedPrompt);
+    const handleToolCall = useCallback(async (fc: any) => {
+        if (fc.name === 'updatePromptComponents' && isIdeationMode) {
+             const args = fc.args as {
+                sflField?: Partial<SFLField>;
+                sflTenor?: Partial<SFLTenor>;
+                sflMode?: Partial<SFLMode>;
+            };
 
-    }, [onUpdatePrompt]);
+            // BUG FIX: Use the ref to get the latest prompt state
+            const currentPrompt = activePromptRef.current;
+            if (!currentPrompt || !onUpdatePrompt) return null;
+            
+            console.log("Executing Tool: updatePromptComponents", args);
+            
+            const updatedPrompt = {
+                ...currentPrompt,
+                sflField: { ...currentPrompt.sflField, ...(args.sflField || {}) },
+                sflTenor: { ...currentPrompt.sflTenor, ...(args.sflTenor || {}) },
+                sflMode: { ...currentPrompt.sflMode, ...(args.sflMode || {}) },
+                updatedAt: new Date().toISOString()
+            };
+            onUpdatePrompt(updatedPrompt);
+            
+            const updatedSections = Object.keys(args).join(', ');
+            setTranscript(prev => [...prev, { speaker: 'system', text: `Tool Executed: Updated ${updatedSections}`, isFinal: true }]);
 
-    const startConversation = useCallback(async () => {
-        if (!isOpen) return;
-        setStatus('connecting');
-        setError(null);
-        setTranscript([{ speaker: 'model', text: isIdeationMode ? "I'm ready to refine the prompt. How can I help?" : "Hello! How can I help you?", isFinal: true}]);
-
-        try {
-            if (!process.env.API_KEY) throw new Error("API key not found.");
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaStreamRef.current = stream;
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-            outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-
-            const sessionPromise = ai.live.connect({
-                model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-                callbacks: {
-                    onopen: () => { 
-                        setStatus('active');
-                        const source = inputAudioContextRef.current!.createMediaStreamSource(stream);
-                        mediaStreamSourceRef.current = source;
-                        const scriptProcessor = inputAudioContextRef.current!.createScriptProcessor(4096, 1, 1);
-                        scriptProcessorRef.current = scriptProcessor;
-                        scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
-                            const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
-                            const l = inputData.length;
-                            const int16 = new Int16Array(l);
-                            for (let i = 0; i < l; i++) {
-                                int16[i] = inputData[i] * 32768;
-                            }
-                            const pcmBlob = { data: encode(new Uint8Array(int16.buffer)), mimeType: 'audio/pcm;rate=16000' };
-                            sessionPromise.then((session) => session.sendRealtimeInput({ media: pcmBlob }));
-                        };
-                        source.connect(scriptProcessor);
-                        scriptProcessor.connect(inputAudioContextRef.current!.destination);
-                    },
-                    onmessage: async (message: LiveServerMessage) => {
-                        // 3. Catch Tool Calls
-                        if (message.toolCall) {
-                            const functionResponses = [];
-                            for (const fc of message.toolCall.functionCalls) {
-                                if (fc.name === 'updatePromptComponents' && isIdeationMode) {
-                                    // Execute the logic locally
-                                    handleUpdatePromptFromTool(fc.args);
-                                    
-                                    const updatedSections = Object.keys(fc.args).join(', ');
-                                    setTranscript(prev => [...prev, { speaker: 'system', text: `Tool Executed: Updated ${updatedSections}`, isFinal: true }]);
-                                    
-                                    // Provide the result back to the model
-                                    functionResponses.push({ 
-                                        id: fc.id, 
-                                        name: fc.name, 
-                                        response: { result: "Success: The prompt components have been updated in the UI." } 
-                                    });
-                                }
-                            }
-                            // Send response back to model
-                            if (functionResponses.length > 0) {
-                                sessionPromise.then((session) => session.sendToolResponse({ functionResponses }));
-                            }
-                        }
-
-                        if (message.serverContent?.inputTranscription) {
-                            const textChunk = message.serverContent.inputTranscription.text;
-                            setTranscript(prev => {
-                                const last = prev[prev.length - 1];
-                                if (last?.speaker === 'user' && !last.isFinal) {
-                                    const newLast = { ...last, text: last.text + textChunk };
-                                    return [...prev.slice(0, -1), newLast];
-                                } else {
-                                    const finalized = prev.map(e => (e.isFinal === false ? { ...e, isFinal: true } : e));
-                                    return [...finalized, { speaker: 'user', text: textChunk, isFinal: false }];
-                                }
-                            });
-                        }
-                        if (message.serverContent?.outputTranscription) {
-                            const textChunk = message.serverContent.outputTranscription.text;
-                            setTranscript(prev => {
-                                const last = prev[prev.length - 1];
-                                if (last?.speaker === 'model' && !last.isFinal) {
-                                    const newLast = { ...last, text: last.text + textChunk };
-                                    return [...prev.slice(0, -1), newLast];
-                                } else {
-                                    const finalized = prev.map(e => (e.isFinal === false ? { ...e, isFinal: true } : e));
-                                    return [...finalized, { speaker: 'model', text: textChunk, isFinal: false }];
-                                }
-                            });
-                        }
-                        if (message.serverContent?.turnComplete) {
-                            setTranscript(prev => prev.map(e => (e.isFinal === false ? { ...e, isFinal: true } : e)));
-                        }
-
-                        const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-                        if (base64Audio) {
-                            const outputContext = outputAudioContextRef.current!;
-                            nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputContext.currentTime);
-                            const audioBuffer = await decodeAudioData(decode(base64Audio), outputContext, 24000, 1);
-                            const source = outputContext.createBufferSource();
-                            source.buffer = audioBuffer;
-                            source.connect(outputContext.destination);
-                            source.addEventListener('ended', () => { audioSourcesRef.current.delete(source); });
-                            source.start(nextStartTimeRef.current);
-                            nextStartTimeRef.current += audioBuffer.duration;
-                            audioSourcesRef.current.add(source);
-                        }
-                        if (message.serverContent?.interrupted) {
-                            audioSourcesRef.current.forEach(s => s.stop());
-                            audioSourcesRef.current.clear();
-                            nextStartTimeRef.current = 0;
-                        }
-                    },
-                    onerror: (e: ErrorEvent) => { 
-                        console.error('Live session error:', e);
-                        setError('A connection error occurred.');
-                        setStatus('error');
-                        cleanup();
-                    },
-                    onclose: () => { 
-                        cleanup();
-                        setStatus('idle');
-                    },
-                },
-                config: {
-                    responseModalities: [Modality.AUDIO],
-                    inputAudioTranscription: {},
-                    outputAudioTranscription: {},
-                    systemInstruction,
-                    tools: isIdeationMode ? [{ functionDeclarations: [updatePromptComponentsFunctionDeclaration] }] : undefined,
-                },
-            });
-            sessionRef.current = await sessionPromise;
-        } catch (e) {
-            console.error('Failed to start conversation:', e);
-            setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-            setStatus('error');
-            cleanup();
+            return "Success: The prompt components have been updated in the UI.";
         }
-    }, [isOpen, systemInstruction, cleanup, isIdeationMode, handleUpdatePromptFromTool]);
+        return null;
+    }, [isIdeationMode, onUpdatePrompt, setTranscript]);
+
+
+    const startConversation = useCallback(() => {
+        const initialMessage = isIdeationMode ? "I'm ready to refine the prompt. How can I help?" : "Hello! How can I help you?";
+        setTranscript([{ speaker: 'model', text: initialMessage, isFinal: true }]);
+
+        connect(
+            'gemini-2.5-flash-native-audio-preview-09-2025',
+            {
+                responseModalities: [Modality.AUDIO],
+                inputAudioTranscription: {},
+                outputAudioTranscription: {},
+                systemInstruction,
+                tools: isIdeationMode ? [{ functionDeclarations: [updatePromptComponentsFunctionDeclaration] }] : undefined,
+            },
+            handleToolCall
+        );
+    }, [connect, isIdeationMode, systemInstruction, handleToolCall, setTranscript]);
 
     useEffect(() => {
         if (isOpen && status === 'idle') {
             startConversation();
         } else if (!isOpen && status !== 'idle') {
-            endConversation();
+            disconnect();
         }
-    }, [isOpen, status, startConversation, endConversation]);
+    }, [isOpen, status, startConversation, disconnect]);
     
     if (!isOpen) return null;
 
@@ -361,7 +201,7 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
                 </main>
                 <footer className="p-4 border-t border-gray-700 bg-gray-900 flex-shrink-0 flex items-center justify-center">
                      <button
-                        onClick={isConversing ? endConversation : startConversation}
+                        onClick={isConversing ? disconnect : startConversation}
                         disabled={status === 'connecting'}
                         className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors text-white ${
                             isConversing ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'

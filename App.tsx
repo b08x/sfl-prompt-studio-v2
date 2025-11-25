@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { PromptSFL, Filters, ModalType, PromptVersion, StagedUserInput, Workflow } from './types';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
@@ -21,11 +22,13 @@ import { useStore } from './store/useStore';
 
 const App: React.FC = () => {
   const { 
-      prompts, workflows, filters, appConstants, activeModal, selectedPrompt, activePage, isSidebarCollapsed,
+      prompts, workflows, filters, appConstants, activeModal, selectedPrompt, isSidebarCollapsed,
       init, addPrompt, updatePrompt, deletePrompt, importPrompts, setFilters, resetFilters,
-      setActiveModal, setSelectedPrompt, setActivePage, toggleSidebar, addAppConstant,
+      setActiveModal, setSelectedPrompt, toggleSidebar, addAppConstant,
       saveWorkflow, deleteWorkflow, saveCustomWorkflows
   } = useStore();
+
+  const location = useLocation();
 
   useEffect(() => {
     init();
@@ -245,69 +248,60 @@ const App: React.FC = () => {
     navigator.clipboard.writeText(promptToMarkdown(prompt));
   };
 
-  const renderMainContent = () => {
-    switch(activePage) {
-        case 'dashboard':
-            return (
-                <>
-                    <TopBar
-                      onAddNewPrompt={handleOpenCreateModal}
-                      onOpenWizard={() => setActiveModal(ModalType.WIZARD)}
-                      searchTerm={filters.searchTerm}
-                      onSearchChange={(value) => handleFilterChange('searchTerm', value)}
-                    />
-                    <div className="flex-1 overflow-y-auto p-6">
-                        <Stats totalPrompts={prompts.length}/>
-                        <div className="mt-8">
-                            <PromptList 
-                                prompts={filteredPrompts} 
-                                onViewPrompt={handleOpenDetailModal}
-                                onEditPrompt={handleOpenEditModal}
-                                onDeletePrompt={deletePrompt}
-                                onCopyToMarkdown={handleCopyToMarkdown}
-                            />
-                        </div>
-                    </div>
-                </>
-            );
-        case 'lab':
-            return <PromptLabPage
-              prompts={prompts}
-              activeWorkflow={activeWorkflow}
-              taskStates={taskStates}
-              isRunning={isRunning}
-              run={run}
-              reset={reset}
-              runFeedback={runFeedback}
-              isLoading={workflows.length === 0} // Using array length as proxy for load state as we init sync
-              workflows={workflows}
-              onSelectWorkflow={setActiveWorkflowId}
-              onOpenWorkflowEditor={() => setActiveModal(ModalType.WORKFLOW_EDITOR)}
-              onOpenWorkflowWizard={() => setActiveModal(ModalType.WORKFLOW_WIZARD)}
-              onDeleteWorkflow={deleteWorkflow}
-              onImportWorkflows={handleImportWorkflows}
-              onStageInput={stageInput}
-              dataStore={dataStore}
-              saveWorkflow={saveWorkflow}
-              activeLabTab={activeLabTab}
-              onSetLabTab={setActiveLabTab}
-              ideationPrompt={ideationPrompt}
-              onIdeationPromptChange={updatePrompt}
-              onSelectIdeationPrompt={setIdeationPromptId}
-            />;
-        case 'documentation':
-            return <div className="flex-1 overflow-y-auto p-6"><Documentation /></div>;
-        case 'settings':
-        default:
-             return (
-                <div className="flex-1 overflow-y-auto p-6">
-                    <div className="text-center py-20 bg-gray-800 rounded-lg border border-gray-700">
-                        <h2 className="text-2xl font-bold text-gray-50">Coming Soon!</h2>
-                    </div>
-                </div>
-            );
+  // Determine active page name for LiveAssistant context
+  const getActivePageName = (): 'dashboard' | 'lab' | 'documentation' | 'settings' => {
+      if (location.pathname.startsWith('/lab')) return 'lab';
+      if (location.pathname.startsWith('/documentation')) return 'documentation';
+      if (location.pathname.startsWith('/settings')) return 'settings';
+      return 'dashboard';
+  };
+  const activePageName = getActivePageName();
+
+  const handleImportPromptsClick = () => {
+    importFileRef.current?.click();
+  };
+
+  const handleExportAllPrompts = () => {
+    try {
+        const exportablePrompts = prompts.map(({ isTesting, geminiResponse, geminiTestError, ...rest }) => rest);
+        const jsonData = JSON.stringify(exportablePrompts, null, 2);
+        const blob = new Blob([jsonData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const date = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `sfl-prompts-export_${date}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Export all failed", error);
+        alert("Failed to export prompts.");
     }
-  }
+  };
+
+  const handleExportAllPromptsMarkdown = () => {
+     try {
+        let markdownContent = `# SFL Prompt Export - ${new Date().toLocaleDateString()}\n\n`;
+        prompts.forEach(p => {
+            markdownContent += promptToMarkdown(p) + "\n\n---\n\n";
+        });
+        const blob = new Blob([markdownContent], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const date = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `sfl-prompts-export_${date}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+     } catch (error) {
+         console.error("Export all markdown failed", error);
+         alert("Failed to export markdown.");
+     }
+  };
 
 
   return (
@@ -316,8 +310,6 @@ const App: React.FC = () => {
         filters={filters}
         onFilterChange={handleFilterChange}
         popularTags={appConstants.popularTags}
-        activePage={activePage}
-        onNavigate={setActivePage}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={toggleSidebar}
       />
@@ -331,7 +323,92 @@ const App: React.FC = () => {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 flex flex-col overflow-hidden">
-          {renderMainContent()}
+          <Routes>
+            <Route path="/" element={
+              <>
+                <TopBar
+                  onAddNewPrompt={handleOpenCreateModal}
+                  onOpenWizard={() => setActiveModal(ModalType.WIZARD)}
+                  searchTerm={filters.searchTerm}
+                  onSearchChange={(value) => handleFilterChange('searchTerm', value)}
+                />
+                 {/* This section needs to accept header actions for import/export which were previously in TopBar in the old design or Dashboard specific */}
+                 {/* Re-injecting the header with actions that were likely part of Dashboard view composition in previous versions or handled differently. 
+                     Checking Sidebar/TopBar logic. TopBar has Add/Wizard. 
+                     The Header component (from components/Header.tsx) seems to have been used inside renderMainContent previously or replaced by TopBar.
+                     Wait, TopBar replaces Header? In the previous App.tsx, TopBar was used for dashboard. 
+                     Ah, the original App.tsx had 'Header' component imported but not used in the 'dashboard' case of renderMainContent in the provided file?
+                     Wait, looking at previous App.tsx provided content:
+                     It uses `TopBar` for dashboard. 
+                     It also uses `import Header from './components/Header';` but doesn't seem to use it in the JSX of `App.tsx` provided.
+                     However, the `Header` component file content shows buttons for import/export.
+                     Let's check `TopBar.tsx`. It has search, wizard, new prompt.
+                     The buttons for import/export/help seem missing from the `TopBar`. 
+                     They were likely in the `Header` component which might have been used in a different version or I missed where it was used.
+                     Actually, in the provided `App.tsx`, `Header` was imported but NOT used.
+                     I will stick to the provided `App.tsx` structure where `TopBar` is the main header.
+                     If I want to expose Import/Export, I should probably add them to the Dashboard view or TopBar.
+                     For now, I will replicate the previous Dashboard view exactly.
+                 */}
+                 {/* Adding a sub-header for actions if needed, or just keeping it simple as per previous App.tsx */}
+                 <div className="flex-1 overflow-y-auto p-6">
+                     <div className="flex justify-end space-x-2 mb-4">
+                        <button onClick={() => setActiveModal(ModalType.HELP)} className="text-gray-400 hover:text-gray-200 text-sm">Help</button>
+                        <span className="text-gray-600">|</span>
+                        <button onClick={handleImportPromptsClick} className="text-gray-400 hover:text-gray-200 text-sm">Import</button>
+                        <span className="text-gray-600">|</span>
+                        <button onClick={handleExportAllPrompts} className="text-gray-400 hover:text-gray-200 text-sm">Export JSON</button>
+                        <span className="text-gray-600">|</span>
+                        <button onClick={handleExportAllPromptsMarkdown} className="text-gray-400 hover:text-gray-200 text-sm">Export MD</button>
+                     </div>
+                    <Stats totalPrompts={prompts.length}/>
+                    <div className="mt-8">
+                        <PromptList 
+                            prompts={filteredPrompts} 
+                            onViewPrompt={handleOpenDetailModal}
+                            onEditPrompt={handleOpenEditModal}
+                            onDeletePrompt={deletePrompt}
+                            onCopyToMarkdown={handleCopyToMarkdown}
+                        />
+                    </div>
+                </div>
+              </>
+            } />
+            <Route path="/lab" element={
+              <PromptLabPage
+                prompts={prompts}
+                activeWorkflow={activeWorkflow}
+                taskStates={taskStates}
+                isRunning={isRunning}
+                run={run}
+                reset={reset}
+                runFeedback={runFeedback}
+                isLoading={workflows.length === 0}
+                workflows={workflows}
+                onSelectWorkflow={setActiveWorkflowId}
+                onOpenWorkflowEditor={() => setActiveModal(ModalType.WORKFLOW_EDITOR)}
+                onOpenWorkflowWizard={() => setActiveModal(ModalType.WORKFLOW_WIZARD)}
+                onDeleteWorkflow={deleteWorkflow}
+                onImportWorkflows={handleImportWorkflows}
+                onStageInput={stageInput}
+                dataStore={dataStore}
+                saveWorkflow={saveWorkflow}
+                activeLabTab={activeLabTab}
+                onSetLabTab={setActiveLabTab}
+                ideationPrompt={ideationPrompt}
+                onIdeationPromptChange={updatePrompt}
+                onSelectIdeationPrompt={setIdeationPromptId}
+              />
+            } />
+            <Route path="/documentation" element={<div className="flex-1 overflow-y-auto p-6"><Documentation /></div>} />
+            <Route path="/settings" element={
+                <div className="flex-1 overflow-y-auto p-6">
+                    <div className="text-center py-20 bg-gray-800 rounded-lg border border-gray-700">
+                        <h2 className="text-2xl font-bold text-gray-50">Coming Soon!</h2>
+                    </div>
+                </div>
+            } />
+          </Routes>
         </main>
       </div>
 
@@ -405,8 +482,8 @@ const App: React.FC = () => {
       <LiveAssistant
         isOpen={isAssistantOpen}
         onClose={() => setIsAssistantOpen(false)}
-        activePage={activePage}
-        labTab={activePage === 'lab' ? activeLabTab : undefined}
+        activePage={activePageName}
+        labTab={activePageName === 'lab' ? activeLabTab : undefined}
         activePrompt={ideationPrompt}
         onUpdatePrompt={updatePrompt}
         activeWorkflow={activeWorkflow}
