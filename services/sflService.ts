@@ -26,20 +26,62 @@ const analysisSchema = {
   required: ['score', 'assessment', 'issues']
 };
 
+const sflPromptSchema = {
+    type: Type.OBJECT,
+    properties: {
+        title: { type: Type.STRING },
+        promptText: { type: Type.STRING },
+        sflField: {
+            type: Type.OBJECT,
+            properties: {
+                topic: { type: Type.STRING },
+                taskType: { type: Type.STRING },
+                domainSpecifics: { type: Type.STRING },
+                keywords: { type: Type.STRING },
+            },
+            required: ['topic', 'taskType', 'domainSpecifics', 'keywords']
+        },
+        sflTenor: {
+            type: Type.OBJECT,
+            properties: {
+                aiPersona: { type: Type.STRING },
+                targetAudience: { type: Type.ARRAY, items: { type: Type.STRING } },
+                desiredTone: { type: Type.STRING },
+                interpersonalStance: { type: Type.STRING },
+            },
+            required: ['aiPersona', 'targetAudience', 'desiredTone', 'interpersonalStance']
+        },
+        sflMode: {
+            type: Type.OBJECT,
+            properties: {
+                outputFormat: { type: Type.STRING },
+                rhetoricalStructure: { type: Type.STRING },
+                lengthConstraint: { type: Type.STRING },
+                textualDirectives: { type: Type.STRING },
+            },
+            required: ['outputFormat', 'rhetoricalStructure', 'lengthConstraint', 'textualDirectives']
+        },
+        exampleOutput: { type: Type.STRING },
+        notes: { type: Type.STRING },
+    },
+    required: ['title', 'promptText', 'sflField', 'sflTenor', 'sflMode', 'exampleOutput', 'notes']
+};
+
 export const generateSFLFromGoal = async (goal: string, sourceDocContent?: string): Promise<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>> => {
     const systemInstruction = `You are an expert in Systemic Functional Linguistics (SFL) and AI prompt engineering. Structure the user's goal into a detailed SFL-based prompt.
-    If a source document is provided, analyze its style and incorporate it.
-    Output MUST be a single JSON object: { "title", "promptText", "sflField", "sflTenor", "sflMode", "exampleOutput", "notes" }.
-    - sflField: { topic, taskType, domainSpecifics, keywords }
-    - sflTenor: { aiPersona, targetAudience (array), desiredTone, interpersonalStance }
-    - sflMode: { outputFormat, rhetoricalStructure, lengthConstraint, textualDirectives }
+    If a source document is provided, analyze its style and incorporate it into the prompt parameters.
+    
+    Adhere to the following SFL framework in your structured output:
+    - sflField (What is happening?): Analyze the subject matter.
+    - sflTenor (Who is taking part?): Define the roles and relationships.
+    - sflMode (What role is language playing?): Specify the format and structure of the output.
     `;
     
     const userContent = sourceDocContent
       ? `Source document for style reference:\n---\n${sourceDocContent}\n---\nUser's goal: "${goal}"`
       : `Here is the user's goal: "${goal}"`;
 
-    const jsonData = await geminiProvider.generateJSON<any>(userContent, undefined, { systemInstruction });
+    const jsonData = await geminiProvider.generateJSON<any>(userContent, sflPromptSchema, { systemInstruction });
     
     // Normalization
     if (jsonData.sflTenor && typeof jsonData.sflTenor.targetAudience === 'string') {
@@ -56,8 +98,7 @@ export const regenerateSFLFromSuggestion = async (
     suggestion: string
 ): Promise<Omit<PromptSFL, 'id' | 'createdAt' | 'updatedAt'>> => {
     const systemInstruction = `You are an expert in SFL and prompt engineering. Revise the existing SFL prompt based on the user's suggestion.
-    Return a single JSON object with the exact same structure as the input. Update fields logically.
-    Structure: { "title", "promptText", "sflField", "sflTenor", "sflMode", "exampleOutput", "notes", "sourceDocument"? }.
+    Update the prompt fields logically to reflect the requested changes while maintaining a coherent SFL structure.
     `;
     
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -70,7 +111,7 @@ export const regenerateSFLFromSuggestion = async (
     Provide revised JSON.
     `;
 
-    const jsonData = await geminiProvider.generateJSON<any>(userContent, undefined, { systemInstruction });
+    const jsonData = await geminiProvider.generateJSON<any>(userContent, sflPromptSchema, { systemInstruction });
 
     if (jsonData.sflTenor && typeof jsonData.sflTenor.targetAudience === 'string') {
         jsonData.sflTenor.targetAudience = [jsonData.sflTenor.targetAudience];
