@@ -2,8 +2,10 @@
 import { useState, useCallback } from 'react';
 import { Workflow, DataStore, TaskStateMap, TaskStatus, Task, PromptSFL, StagedUserInput } from '../types';
 import { topologicalSort, executeTask } from '../services/workflowEngine';
+import { useStore } from '../store/useStore';
 
 export const useWorkflowRunner = (workflow: Workflow | null, prompts: PromptSFL[]) => {
+    const { userApiKeys, defaultProvider, defaultModel } = useStore();
     const [dataStore, setDataStore] = useState<DataStore>({});
     const [taskStates, setTaskStates] = useState<TaskStateMap>({});
     const [isRunning, setIsRunning] = useState(false);
@@ -84,7 +86,14 @@ export const useWorkflowRunner = (workflow: Workflow | null, prompts: PromptSFL[
             setTaskStates(prev => ({...prev, [task.id]: runningState}));
             
             try {
-                const result = await executeTask(task, currentDataStore, prompts);
+                const result = await executeTask(
+                    task,
+                    currentDataStore,
+                    prompts,
+                    userApiKeys,
+                    defaultProvider,
+                    defaultModel
+                );
 
                 currentDataStore = { ...currentDataStore, [task.outputKey]: result };
                 setDataStore(prev => ({ ...prev, [task.outputKey]: result }));
@@ -105,7 +114,7 @@ export const useWorkflowRunner = (workflow: Workflow | null, prompts: PromptSFL[
         
         setIsRunning(false);
 
-    }, [workflow, prompts, resetTaskStates]);
+    }, [workflow, prompts, resetTaskStates, userApiKeys, defaultProvider, defaultModel]);
 
     return { dataStore, taskStates, isRunning, run, reset, stageInput, runFeedback };
 };

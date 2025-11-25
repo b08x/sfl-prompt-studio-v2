@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Workflow, Task, TaskType, PromptSFL } from '../../../types';
+import { AIProvider } from '../../../types/ai';
+import { useStore } from '../../../store/useStore';
 import ModalShell from '../../ModalShell';
 import PlusIcon from '../../icons/PlusIcon';
 import TrashIcon from '../../icons/TrashIcon';
@@ -15,7 +17,7 @@ interface WorkflowEditorModalProps {
     prompts: PromptSFL[];
 }
 
-const emptyTask: Omit<Task, 'id'> = {
+const getEmptyTask = (defaultProvider: AIProvider, defaultModel: string, globalParams: any): Omit<Task, 'id'> => ({
     name: 'New Task',
     description: '',
     type: TaskType.GEMINI_PROMPT,
@@ -23,11 +25,17 @@ const emptyTask: Omit<Task, 'id'> = {
     inputKeys: [],
     outputKey: 'newResult',
     promptTemplate: '',
-    agentConfig: { model: 'gemini-2.5-flash', temperature: 0.7 },
+    agentConfig: {
+        provider: defaultProvider,
+        model: defaultModel,
+        temperature: globalParams.temperature,
+        topK: globalParams.topK,
+        topP: globalParams.topP,
+    },
     functionBody: '',
     staticValue: '',
     dataKey: '',
-};
+});
 
 const TaskEditor: React.FC<{
     task: Task;
@@ -36,8 +44,20 @@ const TaskEditor: React.FC<{
     availableDependencies: { id: string; name: string }[];
     prompts: PromptSFL[];
 }> = ({ task, updateTask, removeTask, availableDependencies, prompts }) => {
-
+    const { availableModels, defaultProvider, defaultModel } = useStore();
     const linkedPrompt = task.promptId ? prompts.find(p => p.id === task.promptId) : null;
+
+    // Ensure agentConfig has a provider, default to Google if not set
+    const taskProvider = (task.agentConfig?.provider as AIProvider) || defaultProvider;
+    const taskModel = task.agentConfig?.model || defaultModel;
+
+    const providerDisplayNames: Record<AIProvider, string> = {
+        [AIProvider.Google]: 'Google (Gemini)',
+        [AIProvider.OpenAI]: 'OpenAI',
+        [AIProvider.OpenRouter]: 'OpenRouter',
+        [AIProvider.Anthropic]: 'Anthropic (Claude)',
+        [AIProvider.Mistral]: 'Mistral',
+    };
 
     const handleChange = (field: keyof Task, value: any) => {
         updateTask({ ...task, [field]: value });
@@ -124,19 +144,119 @@ const TaskEditor: React.FC<{
                             />
                         </div>
                          {!linkedPrompt && (
-                            <div>
-                                <label className={labelClasses}>Agent Config (JSON)</label>
-                                <textarea
-                                    value={task.agentConfig ? JSON.stringify(task.agentConfig, null, 2) : ''}
-                                    onChange={e => {
-                                        try {
-                                            handleChange('agentConfig', JSON.parse(e.target.value))
-                                        } catch { /* Ignore parse errors while typing */ }
-                                    }}
-                                    rows={4}
-                                    className={`${commonInputClasses} font-mono text-sm`}
-                                    placeholder='{ "temperature": 0.5 }'
-                                />
+                            <div className="space-y-3">
+                                <h4 className={`${labelClasses} text-base font-semibold`}>Model Configuration</h4>
+
+                                {/* Provider Selection */}
+                                <div>
+                                    <label className={labelClasses}>Provider</label>
+                                    <select
+                                        value={taskProvider}
+                                        onChange={e => handleAgentConfigChange('provider', e.target.value)}
+                                        className={commonInputClasses}
+                                    >
+                                        {Object.values(AIProvider).map(provider => (
+                                            <option key={provider} value={provider}>
+                                                {providerDisplayNames[provider]}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Model Selection */}
+                                <div>
+                                    <label className={labelClasses}>Model</label>
+                                    <select
+                                        value={taskModel}
+                                        onChange={e => handleAgentConfigChange('model', e.target.value)}
+                                        className={commonInputClasses}
+                                    >
+                                        {availableModels[taskProvider].length > 0 ? (
+                                            availableModels[taskProvider].map(model => (
+                                                <option key={model.id} value={model.id}>
+                                                    {model.name} {model.supportsVision ? '🖼️' : ''}
+                                                </option>
+                                            ))
+                                        ) : (
+                                            <option value={taskModel}>{taskModel}</option>
+                                        )}
+                                    </select>
+                                    {availableModels[taskProvider].length === 0 && (
+                                        <p className="text-xs text-yellow-500 mt-1">
+                                            No models discovered for this provider. Verify API key in Settings.
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Temperature Slider */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className={labelClasses}>Temperature</label>
+                                        <span className="text-gray-400 text-sm">
+                                            {(task.agentConfig?.temperature ?? 0.7).toFixed(2)}
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="2"
+                                        step="0.1"
+                                        value={task.agentConfig?.temperature ?? 0.7}
+                                        onChange={e => handleAgentConfigChange('temperature', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                    />
+                                </div>
+
+                                {/* Top P Slider */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className={labelClasses}>Top P</label>
+                                        <span className="text-gray-400 text-sm">
+                                            {(task.agentConfig?.topP ?? 0.9).toFixed(2)}
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.05"
+                                        value={task.agentConfig?.topP ?? 0.9}
+                                        onChange={e => handleAgentConfigChange('topP', parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                    />
+                                </div>
+
+                                {/* Top K Input */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={labelClasses}>Top K</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            value={task.agentConfig?.topK ?? 40}
+                                            onChange={e => {
+                                                const value = parseInt(e.target.value);
+                                                if (!isNaN(value)) {
+                                                    handleAgentConfigChange('topK', value);
+                                                }
+                                            }}
+                                            className={commonInputClasses}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* System Instruction */}
+                                <div>
+                                    <label className={labelClasses}>System Instruction (Optional)</label>
+                                    <textarea
+                                        value={task.agentConfig?.systemInstruction || ''}
+                                        onChange={e => handleAgentConfigChange('systemInstruction', e.target.value)}
+                                        rows={3}
+                                        className={`${commonInputClasses} font-mono text-sm`}
+                                        placeholder="Optional system instruction for the model..."
+                                    />
+                                </div>
                             </div>
                         )}
                     </div>
@@ -164,6 +284,7 @@ const TaskEditor: React.FC<{
 
 
 const WorkflowEditorModal: React.FC<WorkflowEditorModalProps> = ({ isOpen, onClose, onSave, workflowToEdit, prompts }) => {
+    const { defaultProvider, defaultModel, globalModelParams } = useStore();
     const [workflow, setWorkflow] = useState<Workflow | null>(null);
 
     useEffect(() => {
@@ -196,7 +317,10 @@ const WorkflowEditorModal: React.FC<WorkflowEditorModalProps> = ({ isOpen, onClo
     };
 
     const addTask = () => {
-        const newTask: Task = { ...emptyTask, id: `task-${crypto.randomUUID().slice(0, 8)}` };
+        const newTask: Task = {
+            ...getEmptyTask(defaultProvider, defaultModel, globalModelParams),
+            id: `task-${crypto.randomUUID().slice(0, 8)}`
+        };
         handleWorkflowChange('tasks', [...workflow.tasks, newTask]);
     };
 

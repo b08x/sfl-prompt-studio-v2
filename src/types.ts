@@ -74,6 +74,9 @@ export interface PromptSFL {
   sflAnalysis?: SFLAnalysis;
   // Wizard Metadata
   originalGoal?: string;
+  // Multi-provider testing context
+  preferredProvider?: string; // AIProvider enum value
+  preferredModel?: string;
 }
 
 
@@ -117,6 +120,7 @@ export enum TaskStatus {
 }
 
 export interface AgentConfig {
+  provider?: string; // AIProvider enum value
   model?: string;
   temperature?: number;
   topK?: number;

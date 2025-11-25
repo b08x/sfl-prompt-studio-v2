@@ -1,6 +1,8 @@
 
 import { Task, DataStore, PromptSFL, Workflow } from '../types';
-import { geminiProvider } from './providers/GeminiProvider';
+import { AIProvider } from '../types/ai';
+import { generateTextUnified, agentConfigToExecutionOptions } from './executionService';
+import { geminiProvider } from './providers/GeminiProvider'; // Still needed for Google-specific features
 import { runSafeCode } from './sandboxService';
 
 // Helper to safely get nested properties
@@ -23,7 +25,14 @@ export const templateString = (template: string, dataStore: DataStore): any => {
     });
 };
 
-export const executeTask = async (task: Task, dataStore: DataStore, prompts: PromptSFL[]): Promise<any> => {
+export const executeTask = async (
+    task: Task,
+    dataStore: DataStore,
+    prompts: PromptSFL[],
+    apiKeys: Record<AIProvider, string>,
+    defaultProvider: AIProvider,
+    defaultModel: string
+): Promise<any> => {
     const inputs: Record<string, any> = {};
     for (const key of task.inputKeys) {
         const isOptional = key.endsWith('?');
@@ -56,22 +65,30 @@ export const executeTask = async (task: Task, dataStore: DataStore, prompts: Pro
             if (task.promptId) {
                 const linkedPrompt = prompts.find(p => p.id === task.promptId);
                 if (!linkedPrompt) throw new Error(`Linked prompt ID "${task.promptId}" not found.`);
-                
+
                 const { sflTenor, sflMode } = linkedPrompt;
                 const instructionParts = [];
                 if (sflTenor.aiPersona) instructionParts.push(`You will act as a ${sflTenor.aiPersona}.`);
                 if (sflTenor.desiredTone) instructionParts.push(`Your tone should be ${sflTenor.desiredTone}.`);
                 if (sflTenor.targetAudience?.length) instructionParts.push(`You are writing for ${sflTenor.targetAudience.join(', ')}.`);
                 if (sflMode.textualDirectives) instructionParts.push(`Follow these directives: ${sflMode.textualDirectives}.`);
-                
+
                 systemInstruction = instructionParts.join(' ');
                 finalPromptText = templateString(linkedPrompt.promptText, dataStore);
             } else {
                  if (!task.promptTemplate) throw new Error("Prompt template is missing.");
                 finalPromptText = templateString(task.promptTemplate, dataStore);
             }
-            
-            return geminiProvider.generateText(finalPromptText, { ...task.agentConfig, systemInstruction });
+
+            // Use unified execution service
+            const executionOptions = agentConfigToExecutionOptions(
+                { ...task.agentConfig, systemInstruction },
+                apiKeys[(task.agentConfig?.provider as AIProvider) || defaultProvider],
+                defaultProvider,
+                defaultModel
+            );
+
+            return await generateTextUnified(finalPromptText, executionOptions);
         }
         
         case 'GEMINI_GROUNDED': {
