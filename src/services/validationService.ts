@@ -2,6 +2,7 @@
 import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 import { AIProvider, ApiKeyStatus } from "../types/ai";
+import { VALIDATION_MODEL_GEMINI } from "../config/models";
 
 interface ValidationResult {
   status: ApiKeyStatus;
@@ -42,7 +43,7 @@ export const validateApiKey = async (provider: AIProvider, apiKey: string): Prom
       case AIProvider.Google: {
         const ai = new GoogleGenAI({ apiKey });
         await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: VALIDATION_MODEL_GEMINI,
           contents: 'test',
         });
         return { status: 'valid' };

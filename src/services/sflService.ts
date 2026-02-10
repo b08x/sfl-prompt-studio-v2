@@ -4,6 +4,7 @@ import { AIProvider } from '../types/ai';
 import { geminiProvider } from './providers/GeminiProvider';
 import { generateTextUnified, generateJSONUnified } from './executionService';
 import { Type } from "@google/genai";
+import { DEFAULT_GEMINI_MODEL } from '../config/models';
 
 // Schema definitions
 const analysisSchema = {
@@ -168,7 +169,7 @@ export const analyzeSFL = async (prompt: Omit<PromptSFL, 'id' | 'createdAt' | 'u
         return await geminiProvider.generateJSON<SFLAnalysis>(
             `Analyze components:\n${JSON.stringify(promptData, null, 2)}`,
             analysisSchema,
-            { model: 'gemini-2.5-pro', systemInstruction, apiKey }
+            { model: 'gemini-2.5-pro', systemInstruction, apiKey } // Using Pro model for deeper analysis
         );
     } catch (error) {
         console.error("Analysis failed", error);
@@ -184,7 +185,7 @@ export const testPrompt = async (
     promptText: string,
     apiKey: string,
     provider: AIProvider = AIProvider.Google,
-    model: string = 'gemini-2.5-flash'
+    model: string = DEFAULT_GEMINI_MODEL
 ): Promise<string> => {
     // Use unified execution service for multi-provider support
     return await generateTextUnified(promptText, {

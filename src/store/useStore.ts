@@ -7,6 +7,7 @@ import { AIProvider, ApiKeyStatus, AIModelConfig } from '../types/ai';
 import { validateApiKey } from '../services/validationService';
 import { fetchModels } from '../services/modelDiscoveryService';
 import { secureStorage, StorageMode } from '../utils/secureStorage';
+import { DEFAULT_GEMINI_MODEL } from '../config/models';
 
 interface AppConstants {
   taskTypes: string[];
@@ -120,7 +121,7 @@ export const useStore = create<StoreState>((set, get) => ({
     topP: 0.9,
   },
   defaultProvider: AIProvider.Google,
-  defaultModel: 'gemini-2.5-flash',
+  defaultModel: DEFAULT_GEMINI_MODEL,
 
   activeModal: ModalType.NONE,
   selectedPrompt: null,

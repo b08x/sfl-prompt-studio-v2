@@ -2,6 +2,7 @@
 import { GoogleGenAI, GenerateContentResponse, Part, LiveConnectConfig } from "@google/genai";
 import { AIProvider, AIConfig, LiveSession } from "../aiTypes";
 import { parseJsonFromText } from "../../utils/jsonUtils";
+import { DEFAULT_GEMINI_MODEL } from "../../config/models";
 
 export class GeminiProvider implements AIProvider {
     private getAiClient(config?: AIConfig): GoogleGenAI {
@@ -16,7 +17,7 @@ export class GeminiProvider implements AIProvider {
         try {
             const ai = this.getAiClient(config);
             const response = await ai.models.generateContent({
-                model: config?.model || 'gemini-2.5-flash',
+                model: config?.model || DEFAULT_GEMINI_MODEL,
                 contents: prompt,
                 config: {
                     systemInstruction: config?.systemInstruction,
@@ -35,7 +36,7 @@ export class GeminiProvider implements AIProvider {
         try {
             const ai = this.getAiClient(config);
             const response = await ai.models.generateContent({
-                model: config?.model || 'gemini-2.5-flash',
+                model: config?.model || DEFAULT_GEMINI_MODEL,
                 contents: prompt,
                 config: {
                     systemInstruction: config?.systemInstruction,
@@ -54,7 +55,7 @@ export class GeminiProvider implements AIProvider {
         try {
             const ai = this.getAiClient(config);
             const response = await ai.models.generateContent({
-                model: config?.model || 'gemini-2.5-flash',
+                model: config?.model || DEFAULT_GEMINI_MODEL,
                 contents: { parts: [{ text: prompt }, imagePart] },
                 config: {
                     systemInstruction: config?.systemInstruction,
@@ -71,7 +72,7 @@ export class GeminiProvider implements AIProvider {
         try {
             const ai = this.getAiClient(config);
             const response = await ai.models.generateContent({
-                model: config?.model || 'gemini-2.5-flash',
+                model: config?.model || DEFAULT_GEMINI_MODEL,
                 contents: prompt,
                 config: {
                     tools: [{ googleSearch: {} }],

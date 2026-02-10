@@ -1,4 +1,5 @@
 import { SFLField, SFLTenor, SFLMode, PromptSFL, Workflow, TaskType, Filters } from './types';
+import { DEFAULT_GEMINI_MODEL } from './config/models';
 
 export const TASK_TYPES = [
   "Explanation", "Summarization", "Code Generation", "Creative Writing", 
@@ -176,7 +177,7 @@ export const DEFAULT_WORKFLOWS: Workflow[] = [
         inputKeys: ["articleText"],
         outputKey: "sentiment",
         promptTemplate: "Analyze the sentiment of the following article and classify it as POSITIVE, NEGATIVE, or NEUTRAL. Return only the classification. Article: {{articleText}}",
-        agentConfig: { model: 'gemini-2.5-flash', temperature: 0.1 }
+        agentConfig: { model: DEFAULT_GEMINI_MODEL, temperature: 0.1 }
       },
       {
         id: "task-3",
@@ -187,7 +188,7 @@ export const DEFAULT_WORKFLOWS: Workflow[] = [
         inputKeys: ["articleText"],
         outputKey: "summary",
         promptTemplate: "Summarize the following article in three concise sentences. Article: {{articleText}}",
-        agentConfig: { model: 'gemini-2.5-flash', temperature: 0.7 }
+        agentConfig: { model: DEFAULT_GEMINI_MODEL, temperature: 0.7 }
       },
       {
         id: "task-4",
@@ -226,7 +227,7 @@ export const DEFAULT_WORKFLOWS: Workflow[] = [
         inputKeys: ["userImage"],
         outputKey: "imageDescription",
         promptTemplate: "Describe the contents of this image in detail.",
-        agentConfig: { model: 'gemini-2.5-flash' }
+        agentConfig: { model: DEFAULT_GEMINI_MODEL }
       },
       {
         id: "img-task-3",
@@ -237,7 +238,7 @@ export const DEFAULT_WORKFLOWS: Workflow[] = [
         inputKeys: ["imageDescription"],
         outputKey: "captions",
         promptTemplate: "Based on the following description of an image, generate 3 creative and engaging social media captions. Image description: {{imageDescription}}",
-        agentConfig: { model: 'gemini-2.5-flash', temperature: 0.8 }
+        agentConfig: { model: DEFAULT_GEMINI_MODEL, temperature: 0.8 }
       }
     ]
   },
@@ -276,7 +277,7 @@ export const DEFAULT_WORKFLOWS: Workflow[] = [
         inputKeys: ["issueDescription", "codebaseText"],
         outputKey: "analysis",
         promptTemplate: "Please analyze the following code based on the issue described. Identify the root cause of the problem and explain it clearly.\n\nISSUE DESCRIPTION:\n{{issueDescription}}\n\nCODEBASE:\n```\n{{codebaseText}}\n```",
-        agentConfig: { model: 'gemini-2.5-flash', temperature: 0.2 }
+        agentConfig: { model: DEFAULT_GEMINI_MODEL, temperature: 0.2 }
       },
       {
         id: "debug-task-4",
@@ -287,7 +288,7 @@ export const DEFAULT_WORKFLOWS: Workflow[] = [
         inputKeys: ["analysis", "codebaseText"],
         outputKey: "codeFix",
         promptTemplate: "Based on the following analysis and original code, provide a corrected version of the code. Only output the corrected code block with clear comments on the changes. Do not include any other explanations outside of the code block.\n\nANALYSIS:\n{{analysis}}\n\nORIGINAL CODE:\n```\n{{codebaseText}}\n```",
-        agentConfig: { model: 'gemini-2.5-flash', temperature: 0.5 }
+        agentConfig: { model: DEFAULT_GEMINI_MODEL, temperature: 0.5 }
       }
     ]
   },
@@ -306,7 +307,7 @@ export const DEFAULT_WORKFLOWS: Workflow[] = [
         inputKeys: ["userInput.image?"],
         outputKey: "imageAnalysisResult",
         promptTemplate: "Thoroughly describe the visual elements and any text in this image. Focus on aspects that could convey subtle, indirect, or emotionally-charged messages. What is the potential perlocutionary effect of this image?",
-        agentConfig: { model: 'gemini-2.5-flash' }
+        agentConfig: { model: DEFAULT_GEMINI_MODEL }
       },
       {
         id: "pef-task-2",
@@ -327,7 +328,7 @@ export const DEFAULT_WORKFLOWS: Workflow[] = [
         inputKeys: ["obfuscatedPrompt"],
         outputKey: "perlocutionaryMetrics",
         promptTemplate: `Given the following potentially obfuscated communication, analyze its perlocutionary effects. Identify the likely emotional responses (e.g., anger, confusion, reassurance) and social consequences (e.g., loss of trust, increased cohesion, conflict initiation). Output your analysis as a JSON object with keys "emotional_responses" (an array of strings) and "social_consequences" (an array of strings).\n\nCommunication:\n"{{obfuscatedPrompt}}"`,
-        agentConfig: { model: 'gemini-2.5-flash', temperature: 0.3 }
+        agentConfig: { model: DEFAULT_GEMINI_MODEL, temperature: 0.3 }
       },
       {
         id: "pef-task-4",
@@ -338,7 +339,7 @@ export const DEFAULT_WORKFLOWS: Workflow[] = [
         inputKeys: ["perlocutionaryMetrics", "obfuscatedPrompt"],
         outputKey: "riskAssessmentReport",
         promptTemplate: `Based on the following analysis of perlocutionary effects, generate a concise risk assessment report in Markdown format. The report should summarize the findings and assign a risk level (Low, Medium, High).\n\nOriginal Communication:\n"{{obfuscatedPrompt}}"\n\nAnalysis:\n{{perlocutionaryMetrics}}`,
-        agentConfig: { model: 'gemini-2.5-flash', temperature: 0.5 }
+        agentConfig: { model: DEFAULT_GEMINI_MODEL, temperature: 0.5 }
       }
     ]
   }

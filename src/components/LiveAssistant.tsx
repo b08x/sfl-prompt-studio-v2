@@ -5,6 +5,9 @@ import { useGeminiLive } from '../hooks/useGeminiLive';
 import { useStore } from '../store/useStore';
 import { AIProvider } from '../types/ai';
 
+// Live API model constant - specific to Gemini Live features
+const GEMINI_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
+
 import XMarkIcon from './icons/XMarkIcon';
 import SparklesIcon from './icons/SparklesIcon';
 import UserCircleIcon from './icons/UserCircleIcon';
@@ -139,7 +142,7 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({
         setTranscript([{ speaker: 'model', text: initialMessage, isFinal: true }]);
 
         connect(
-            'gemini-2.5-flash-native-audio-preview-09-2025',
+            GEMINI_LIVE_MODEL,
             {
                 responseModalities: [Modality.AUDIO],
                 inputAudioTranscription: {},
