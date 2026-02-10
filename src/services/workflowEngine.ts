@@ -5,22 +5,88 @@ import { generateTextUnified, agentConfigToExecutionOptions } from './executionS
 import { geminiProvider } from './providers/GeminiProvider'; // Still needed for Google-specific features
 import { runSafeCode } from './sandboxService';
 
-// Helper to safely get nested properties
+/**
+ * Safely get nested properties from an object using dot notation
+ * Handles undefined/null values gracefully
+ *
+ * @param obj - Source object
+ * @param path - Dot-separated path (e.g., "user.address.city")
+ * @returns The value at the path, or undefined if not found
+ */
 const getNested = (obj: Record<string, any>, path: string): any => {
-    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+    try {
+        return path.split('.').reduce((acc, part) => {
+            // Return undefined if we hit a null/undefined in the chain
+            if (acc === null || acc === undefined) return undefined;
+            return acc[part];
+        }, obj);
+    } catch (error) {
+        // Handle edge cases like invalid property access
+        console.warn(`Failed to access nested property "${path}":`, error);
+        return undefined;
+    }
 };
 
+/**
+ * Robust template string implementation with enhanced error handling
+ *
+ * Features:
+ * - Supports nested object paths (e.g., {{user.address.city}})
+ * - Graceful handling of null/undefined values
+ * - Automatic JSON stringification for objects
+ * - Preserves non-string types when template is a single variable
+ * - Safe property access with try-catch
+ *
+ * @param template - Template string with {{variable}} placeholders
+ * @param dataStore - Data object to interpolate into template
+ * @returns Interpolated value (string or original type if single variable)
+ *
+ * @example
+ * // Simple variable
+ * templateString("{{name}}", { name: "Alice" }) // "Alice"
+ *
+ * // Nested object
+ * templateString("{{user.name}}", { user: { name: "Bob" } }) // "Bob"
+ *
+ * // Missing nested property
+ * templateString("{{user.address.city}}", { user: {} }) // "{{user.address.city}}"
+ *
+ * // Single variable (preserves type)
+ * templateString("{{count}}", { count: 42 }) // 42 (number, not string)
+ *
+ * // Object stringification
+ * templateString("Data: {{obj}}", { obj: { a: 1 } }) // "Data: {\n  \"a\": 1\n}"
+ */
 export const templateString = (template: string, dataStore: DataStore): any => {
+    // Check if template is a single variable reference (e.g., "{{someKey}}")
+    // In this case, return the actual value (preserving its type)
     const singleVarMatch = template.trim().match(/^\{\{\s*([\w\.]+)\s*\}\}$/);
     if (singleVarMatch) {
         const key = singleVarMatch[1];
         const value = getNested(dataStore, key);
         return value !== undefined ? value : template;
     }
+
+    // For complex templates with multiple variables, perform string interpolation
     return template.replace(/\{\{\s*([\w\.]+)\s*\}\}/g, (match, key) => {
         const value = getNested(dataStore, key);
-        if (value === undefined || value === null) return match;
-        if (typeof value === 'object') return JSON.stringify(value, null, 2);
+
+        // If value doesn't exist, preserve the template tag for debugging
+        if (value === undefined || value === null) {
+            return match;
+        }
+
+        // Stringify objects for readability
+        if (typeof value === 'object') {
+            try {
+                return JSON.stringify(value, null, 2);
+            } catch (error) {
+                console.warn(`Failed to stringify object for key "${key}":`, error);
+                return String(value);
+            }
+        }
+
+        // Convert other types to string
         return String(value);
     });
 };
