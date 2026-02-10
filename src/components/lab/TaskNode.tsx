@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Handle, Position, NodeProps } from 'reactflow';
+import { Handle, Position, NodeProps } from '@xyflow/react';
 import { Task, TaskState, TaskStatus, TaskType } from '../../types';
 import CodeBracketIcon from '../icons/CodeBracketIcon';
 import SparklesIcon from '../icons/SparklesIcon';

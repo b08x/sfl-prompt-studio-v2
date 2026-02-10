@@ -1,14 +1,16 @@
 
 import React, { useEffect, useMemo, useCallback } from 'react';
-import ReactFlow, { 
-    Background, 
-    Controls, 
-    useNodesState, 
+import {
+    ReactFlow,
+    Background,
+    Controls,
+    useNodesState,
     useEdgesState,
     Node,
     Edge,
     Position
-} from 'reactflow';
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
 import { Workflow, TaskStateMap, Task, TaskType, DataStore, TaskStatus, PromptSFL } from '../../types';
 import TaskNode from './TaskNode';
