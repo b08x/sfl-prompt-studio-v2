@@ -35,11 +35,11 @@ export const storage = {
     localStorage.removeItem(`${PROMPT_PREFIX}${id}`);
   },
 
-  getAllPrompts: (): PromptSFL[] => {
+  getAllPrompts: (page?: number, limit?: number): PromptSFL[] => {
     const ids = storage.getPromptIds();
     const prompts: PromptSFL[] = [];
     const validIds: string[] = [];
-    
+
     ids.forEach(id => {
       const p = storage.getPrompt(id);
       if (p) {
@@ -52,8 +52,25 @@ export const storage = {
     if (validIds.length !== ids.length) {
       storage.savePromptIds(validIds);
     }
-    
-    return prompts.sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+    // Sort by most recently updated
+    const sorted = prompts.sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+    // Apply pagination if requested
+    if (page !== undefined && limit !== undefined) {
+      const startIndex = page * limit;
+      const endIndex = startIndex + limit;
+      return sorted.slice(startIndex, endIndex);
+    }
+
+    return sorted;
+  },
+
+  /**
+   * Get total count of prompts (for pagination)
+   */
+  getPromptsCount: (): number => {
+    return storage.getPromptIds().length;
   },
 
   // Workflow Storage (Simple Key for now as workflows are generally fewer/smaller than prompts history)

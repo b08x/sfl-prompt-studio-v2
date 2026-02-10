@@ -25,12 +25,20 @@ export interface GlobalModelParams {
   topP: number;
 }
 
+export interface PaginationState {
+  currentPage: number;
+  pageSize: number;
+  totalItems: number;
+  hasMore: boolean;
+}
+
 interface StoreState {
   // Data
   prompts: PromptSFL[];
   workflows: Workflow[];
   filters: Filters;
   appConstants: AppConstants;
+  pagination: PaginationState;
 
   // AI Configuration State
   isInitialized: boolean;
@@ -50,6 +58,8 @@ interface StoreState {
   // Actions
   init: () => Promise<void>;
   loadPrompts: () => void;
+  loadMorePrompts: () => void;
+  resetPagination: () => void;
   addPrompt: (prompt: PromptSFL) => void;
   updatePrompt: (prompt: PromptSFL) => void;
   deletePrompt: (id: string) => void;
@@ -78,6 +88,8 @@ interface StoreState {
   addAppConstant: (key: keyof AppConstants, value: string) => void;
 }
 
+const INITIAL_PAGE_SIZE = 50; // Load 50 prompts initially
+
 export const useStore = create<StoreState>((set, get) => ({
   prompts: [],
   workflows: [],
@@ -90,6 +102,12 @@ export const useStore = create<StoreState>((set, get) => ({
     outputFormats: OUTPUT_FORMATS,
     lengthConstraints: LENGTH_CONSTRAINTS,
     popularTags: POPULAR_TAGS,
+  },
+  pagination: {
+    currentPage: 0,
+    pageSize: INITIAL_PAGE_SIZE,
+    totalItems: 0,
+    hasMore: false,
   },
 
   isInitialized: false,
@@ -128,16 +146,35 @@ export const useStore = create<StoreState>((set, get) => ({
   isSidebarCollapsed: false,
   
   init: async () => {
-    // Load Prompts
-    const loadedPrompts = storage.getAllPrompts();
-    if (loadedPrompts.length === 0) {
+    // Load Prompts with Pagination
+    const totalCount = storage.getPromptsCount();
+
+    if (totalCount === 0) {
         // If empty, seed with samples
         const samples = SAMPLE_PROMPTS;
         samples.forEach(p => storage.savePrompt(p));
         storage.savePromptIds(samples.map(p => p.id));
-        set({ prompts: samples });
+        set({
+            prompts: samples,
+            pagination: {
+                currentPage: 0,
+                pageSize: INITIAL_PAGE_SIZE,
+                totalItems: samples.length,
+                hasMore: false,
+            }
+        });
     } else {
-        set({ prompts: loadedPrompts });
+        // Load first page
+        const firstPagePrompts = storage.getAllPrompts(0, INITIAL_PAGE_SIZE);
+        set({
+            prompts: firstPagePrompts,
+            pagination: {
+                currentPage: 0,
+                pageSize: INITIAL_PAGE_SIZE,
+                totalItems: totalCount,
+                hasMore: totalCount > INITIAL_PAGE_SIZE,
+            }
+        });
     }
 
     // Load Workflows
@@ -235,7 +272,49 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   loadPrompts: () => {
-    set({ prompts: storage.getAllPrompts() });
+    const totalCount = storage.getPromptsCount();
+    const allPrompts = storage.getAllPrompts();
+    set({
+      prompts: allPrompts,
+      pagination: {
+        currentPage: 0,
+        pageSize: INITIAL_PAGE_SIZE,
+        totalItems: totalCount,
+        hasMore: false, // All loaded
+      }
+    });
+  },
+
+  loadMorePrompts: () => {
+    const { pagination, prompts } = get();
+    if (!pagination.hasMore) return;
+
+    const nextPage = pagination.currentPage + 1;
+    const nextPagePrompts = storage.getAllPrompts(nextPage, pagination.pageSize);
+    const newTotalLoaded = prompts.length + nextPagePrompts.length;
+
+    set({
+      prompts: [...prompts, ...nextPagePrompts],
+      pagination: {
+        ...pagination,
+        currentPage: nextPage,
+        hasMore: newTotalLoaded < pagination.totalItems,
+      }
+    });
+  },
+
+  resetPagination: () => {
+    const totalCount = storage.getPromptsCount();
+    const firstPagePrompts = storage.getAllPrompts(0, INITIAL_PAGE_SIZE);
+    set({
+      prompts: firstPagePrompts,
+      pagination: {
+        currentPage: 0,
+        pageSize: INITIAL_PAGE_SIZE,
+        totalItems: totalCount,
+        hasMore: totalCount > INITIAL_PAGE_SIZE,
+      }
+    });
   },
 
   addPrompt: (prompt) => {

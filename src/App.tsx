@@ -25,10 +25,10 @@ import { useStore } from './store/useStore';
 const App: React.FC = () => {
   const {
       prompts, workflows, filters, appConstants, activeModal, selectedPrompt, isSidebarCollapsed,
-      isInitialized, apiKeyValidation, userApiKeys,
+      isInitialized, apiKeyValidation, userApiKeys, pagination,
       init, addPrompt, updatePrompt, deletePrompt, importPrompts, setFilters, resetFilters,
       setActiveModal, setSelectedPrompt, toggleSidebar, addAppConstant,
-      saveWorkflow, deleteWorkflow, saveCustomWorkflows
+      saveWorkflow, deleteWorkflow, saveCustomWorkflows, loadMorePrompts
   } = useStore();
 
   const location = useLocation();
@@ -397,14 +397,17 @@ const App: React.FC = () => {
                         <span className="text-gray-600">|</span>
                         <button onClick={handleExportAllPromptsMarkdown} className="text-gray-400 hover:text-gray-200 text-sm">Export MD</button>
                      </div>
-                    <Stats totalPrompts={prompts.length}/>
+                    <Stats totalPrompts={pagination.totalItems}/>
                     <div className="mt-8">
-                        <PromptList 
-                            prompts={filteredPrompts} 
+                        <PromptList
+                            prompts={filteredPrompts}
                             onViewPrompt={handleOpenDetailModal}
                             onEditPrompt={handleOpenEditModal}
                             onDeletePrompt={deletePrompt}
                             onCopyToMarkdown={handleCopyToMarkdown}
+                            hasMore={pagination.hasMore}
+                            onLoadMore={loadMorePrompts}
+                            totalCount={pagination.totalItems}
                         />
                     </div>
                 </div>
